@@ -31,6 +31,7 @@ import android.util.Slog;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.util.ExtendedPropertiesUtils;
 
 import com.android.systemui.R;
 
@@ -42,6 +43,7 @@ public class BatteryController extends BroadcastReceiver {
     private ArrayList<TextView> mLabelViews = new ArrayList<TextView>();
 
     private static final int BATTERY_STYLE_NORMAL         = 0;
+    private static final int BATTERY_STYLE_TEXT           = 5;
     private static final int BATTERY_STYLE_PERCENT        = 1;
     /***
      * BATTERY_STYLE_CIRCLE* cannot be handled in this controller, since we cannot get views from
@@ -63,6 +65,7 @@ public class BatteryController extends BroadcastReceiver {
     private static final int BATTERY_TEXT_STYLE_MIN     = R.string.status_bar_settings_battery_meter_min_format;
 
     private boolean mBatteryPlugged = false;
+    private int mLevel = -1;
     private int mBatteryStyle;
     private int mBatteryIcon = BATTERY_ICON_STYLE_NORMAL;
 
@@ -109,21 +112,8 @@ public class BatteryController extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         final String action = intent.getAction();
         if (action.equals(Intent.ACTION_BATTERY_CHANGED)) {
-            final int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, 0);
+            mLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, 0);
             mBatteryPlugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0;
-            int N = mIconViews.size();
-            for (int i=0; i<N; i++) {
-                ImageView v = mIconViews.get(i);
-                v.setImageLevel(level);
-                v.setContentDescription(mContext.getString(R.string.accessibility_battery_level,
-                        level));
-            }
-            N = mLabelViews.size();
-            for (int i=0; i<N; i++) {
-                TextView v = mLabelViews.get(i);
-                v.setText(mContext.getString(BATTERY_TEXT_STYLE_MIN,
-                        level));
-            }
             updateBattery();
         }
     }
@@ -142,17 +132,49 @@ public class BatteryController extends BroadcastReceiver {
             mText = (View.VISIBLE);
             mIconStyle = mBatteryPlugged ? BATTERY_ICON_STYLE_CHARGE_MIN
                     : BATTERY_ICON_STYLE_NORMAL_MIN;
+        } else if (mBatteryStyle == BATTERY_STYLE_TEXT) {
+            mIcon = (View.GONE);
+            mText = (View.VISIBLE);
         }
 
         int N = mIconViews.size();
         for (int i=0; i<N; i++) {
             ImageView v = mIconViews.get(i);
+            v.setImageLevel(mLevel);
+            v.setContentDescription(mContext.getString(R.string.accessibility_battery_level,
+                mLevel));
             v.setVisibility(mIcon);
             v.setImageResource(mIconStyle);
         }
+
         N = mLabelViews.size();
         for (int i=0; i<N; i++) {
             TextView v = mLabelViews.get(i);
+            if (mBatteryStyle == BATTERY_STYLE_TEXT) {
+                v.setText(mContext.getString(BATTERY_TEXT_STYLE_NORMAL,
+                        mLevel));
+                if (!ExtendedPropertiesUtils.mIsTablet) {
+                    v.setTextSize(14);
+                }
+                if (mBatteryPlugged) {
+                    v.setTextColor(mContext.getResources().getColor(
+                            com.android.internal.R.color.holo_green_light));
+                } else if(mLevel <= 14) {
+                    v.setTextColor(mContext.getResources().getColor(
+                            com.android.internal.R.color.holo_orange_dark));
+                } else {
+                    v.setTextColor(mContext.getResources().getColor(
+                            com.android.internal.R.color.holo_blue_light));
+                }
+            } else {
+                v.setText(mContext.getString(BATTERY_TEXT_STYLE_MIN,
+                        mLevel));
+                if (!ExtendedPropertiesUtils.mIsTablet) {
+                    v.setTextSize(12);
+                }
+                v.setTextColor(mContext.getResources().getColor(
+                        com.android.internal.R.color.holo_blue_light));
+            }
             v.setVisibility(mText);
         }
     }
