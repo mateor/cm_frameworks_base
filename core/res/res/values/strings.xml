@@ -3016,8 +3016,8 @@
     <string name="date_time_set">Set</string>
     <!-- Name of the button in the date/time picker to accept the date/time change -->
     <string name="date_time_done">Done</string>
-    
-     <!-- Color picker dialog strings -->
+
+    <!-- Color picker dialog strings -->
     <string name="color_picker">Color picker</string>
     <string name="color_picker_hint">Press on color to apply</string>
     <string name="color_picker_hex">Hex:</string>
