@@ -18,14 +18,19 @@ package com.android.systemui.statusbar.policy;
 
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.database.ContentObserver;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
-import android.graphics.drawable.Drawable;
 import android.graphics.Canvas;
+import android.graphics.drawable.Drawable;
+import android.graphics.PorterDuff;
 import android.graphics.RectF;
 import android.hardware.input.InputManager;
+import android.os.Handler;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.util.AttributeSet;
 import android.view.HapticFeedbackConstants;
 import android.view.InputDevice;
@@ -59,6 +64,9 @@ public class KeyButtonView extends ImageView {
     boolean mSupportsLongpress = true;
     RectF mRect = new RectF(0f,0f,0f,0f);
     AnimatorSet mPressedAnim;
+    int mButtonColor = 0x00000000;
+    int mGlowColor = 0x00000000;
+    Context mContext;
 
     Runnable mCheckLongPress = new Runnable() {
         public void run() {
@@ -75,12 +83,53 @@ public class KeyButtonView extends ImageView {
         }
     };
 
+    private final class PrimaryObserver extends ContentObserver {
+        PrimaryObserver(Handler handler) {
+            super(handler);
+        }
+
+        void observe() {
+            ContentResolver resolver = mContext.getContentResolver();
+            resolver.registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.NAV_BUTTON_COLOR), false, this);
+            resolver.registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.NAV_GLOW_COLOR), false, this);
+        }
+
+        @Override
+        public void onChange(boolean selfChange) {
+            updateColor(true);
+        }
+    }
+
+    private final class SecondaryObserver extends ContentObserver {
+        SecondaryObserver(Handler handler) {
+            super(handler);
+        }
+
+        void observe() {
+            ContentResolver resolver = mContext.getContentResolver();
+            resolver.registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.NAV_BUTTON_COLOR_SECONDARY), false, this);
+            resolver.registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.NAV_GLOW_COLOR_SECONDARY), false, this);
+        }
+
+        @Override
+        public void onChange(boolean selfChange) {
+            updateColor(false);
+        }
+    }
+
+
     public KeyButtonView(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
 
     public KeyButtonView(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs);
+
+        mContext = context;
 
         TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.KeyButtonView,
                 defStyle, 0);
@@ -100,6 +149,34 @@ public class KeyButtonView extends ImageView {
 
         setClickable(true);
         mTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+
+        PrimaryObserver primaryObserver = new PrimaryObserver(new Handler());
+        primaryObserver.observe();
+
+        SecondaryObserver secondaryObserver = new SecondaryObserver(new Handler());
+        secondaryObserver.observe();
+
+        updateColor(true);
+    }
+
+    private void updateColor(boolean primary) {
+        int oldButtonColor = mButtonColor;
+        int oldGlowColor = mGlowColor;
+
+        if (primary) {
+            mButtonColor = Settings.System.getInt(mContext.getContentResolver(),
+                Settings.System.NAV_BUTTON_COLOR, 0x00000000);
+            mGlowColor = Settings.System.getInt(mContext.getContentResolver(),
+                Settings.System.NAV_GLOW_COLOR, 0x00000000);
+        } else {
+            mButtonColor = Settings.System.getInt(mContext.getContentResolver(),
+                Settings.System.NAV_BUTTON_COLOR_SECONDARY, 0x00000000);
+            mGlowColor = Settings.System.getInt(mContext.getContentResolver(),
+                Settings.System.NAV_GLOW_COLOR_SECONDARY, 0x00000000);
+        }
+
+        this.setColorFilter(mButtonColor, PorterDuff.Mode.SRC_ATOP);
+        mGlowBG.setColorFilter(mGlowColor, PorterDuff.Mode.SRC_ATOP);
     }
 
     @Override

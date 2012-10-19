@@ -208,14 +208,20 @@ public class NavigationBarView extends LinearLayout {
         mBackLandIcon = res.getDrawable(R.drawable.ic_sysbar_back_land);
         mBackAltIcon = res.getDrawable(R.drawable.ic_sysbar_back_ime);
         mBackAltLandIcon = res.getDrawable(R.drawable.ic_sysbar_back_ime_land);
+
         mContext.getContentResolver().registerContentObserver(
-                Settings.System.getUriFor(Settings.System.NAV_BAR_COLOR), false,
-                new ContentObserver(new Handler()) {
-                    @Override
-                    public void onChange(boolean selfChange) {
-                        updateColor();
-                    }
-                });
+            Settings.System.getUriFor(Settings.System.NAV_BAR_COLOR), false, new ContentObserver(new Handler()) {
+                @Override
+                public void onChange(boolean selfChange) {
+                    updateColor(true);
+                }});
+
+        mContext.getContentResolver().registerContentObserver(
+            Settings.System.getUriFor(Settings.System.NAV_BAR_COLOR_SECONDARY), false, new ContentObserver(new Handler()) {
+                @Override
+                public void onChange(boolean selfChange) {
+                    updateColor(false);
+                }});
     }
 
     public class NavBarReceiver extends BroadcastReceiver {
@@ -423,7 +429,7 @@ public class NavigationBarView extends LinearLayout {
         mRotatedViews[Surface.ROTATION_270] = NAVBAR_ALWAYS_AT_RIGHT
                                                 ? findViewById(R.id.rot90)
                                                 : findViewById(R.id.rot270);
-        updateColor();
+        updateColor(true);
         mCurrentView = mRotatedViews[Surface.ROTATION_0];
     }
 
@@ -568,14 +574,19 @@ public class NavigationBarView extends LinearLayout {
         pw.println("    }");
     }
 
-
-    private void updateColor() {
+    private void updateColor(boolean primary) {
         Drawable oldColor = getBackground();
-
         Bitmap bm = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
         Canvas cnv = new Canvas(bm);
-        cnv.drawColor(Settings.System.getInt(mContext.getContentResolver(),
-            Settings.System.NAV_BAR_COLOR, 0xFF000000));
+
+        if (primary) {
+            cnv.drawColor(Settings.System.getInt(mContext.getContentResolver(),
+                Settings.System.NAV_BAR_COLOR, 0xFF000000));
+        } else {
+            cnv.drawColor(Settings.System.getInt(mContext.getContentResolver(),
+                Settings.System.NAV_BAR_COLOR_SECONDARY, 0xFF000000));
+        }
+
         Drawable newColor = new BitmapDrawable(bm);
 
         TransitionDrawable transition = new TransitionDrawable(new Drawable[]{oldColor, newColor});
