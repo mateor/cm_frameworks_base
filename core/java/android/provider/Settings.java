@@ -2513,34 +2513,58 @@ public final class Settings {
         public static final String MAX_NOTIFICATION_ICONS = "max_notification_icons";
 
         /**
-         * Display style of AM/PM next to clock in status bar
-         * 0: Normal display (Eclair stock)
-         * 1: Small display (Froyo stock)
-         * 2: No display (Gingerbread/ICS stock)
-         * default: 2
+         * Whether to show AM/PM next to clock in status bar
+         * 0: don't show AM/PM
+         * 1: show AM/PM
+         * default: 0
          * @hide
          */
-        public static final String STATUS_BAR_AM_PM = "status_bar_am_pm";
-
-	    /**
-         * Display style of the day of the week before clock in status bar
-         * 0: Normal display
-         * 1: Small display
-         * 2: No display
-         * default: 2
-         * @hide
-         */
-        public static final String STATUS_BAR_WEEKDAY = "status_bar_weekday";
+        public static final String STATUS_BAR_SHOW_AM_PM = "status_bar_show_am_pm";
 
         /**
-         * Display style of day and month before clock in status bar
-         * 0: Normal display
-         * 1: Small display
-         * 2: No display
-         * default: 2
+         * Size of AM/PM next to clock in status bar
+         * 0: Normal display (Eclair stock)
+         * 1: Small display (Froyo stock)
+         * default: 1
          * @hide
          */
-        public static final String STATUS_BAR_DAYMONTH = "status_bar_daymonth";
+        public static final String STATUS_BAR_AM_PM_SIZE = "status_bar_am_pm_size";
+
+        /**
+         * Whether to show day of the week before to clock in status bar
+         * 0: don't show day of the week
+         * 1: show day of the week
+         * default: 0
+         * @hide
+         */
+        public static final String STATUS_BAR_SHOW_WEEKDAY = "status_bar_show_weekday";
+
+        /**
+         * Size of the day of the week before clock in status bar
+         * 0: Normal display
+         * 1: Small display
+         * default: 1
+         * @hide
+         */
+        public static final String STATUS_BAR_WEEKDAY_SIZE = "status_bar_weekday_size";
+
+        /**
+         * Whether to show day and month before clock in status bar
+         * 0: don't show day and month
+         * 1: show day and month
+         * default: 0
+         * @hide
+         */
+        public static final String STATUS_BAR_SHOW_DAYMONTH = "status_bar_show_daymonth";
+
+        /**
+         * Size of day and month before clock in status bar
+         * 0: Normal display
+         * 1: Small display
+         * default: 1
+         * @hide
+         */
+        public static final String STATUS_BAR_DAYMONTH_SIZE = "status_bar_daymonth_size";
 
         /**
          * Statusbar transparency value

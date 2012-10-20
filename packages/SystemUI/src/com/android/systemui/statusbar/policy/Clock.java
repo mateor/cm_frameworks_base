@@ -41,6 +41,7 @@ import android.text.style.StyleSpan;
 import android.util.AttributeSet;
 import android.view.View;
 import android.widget.TextView;
+import android.util.ExtendedPropertiesUtils;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -58,28 +59,34 @@ public class Clock extends TextView {
     private String mClockFormatString;
     private SimpleDateFormat mClockFormat;
 
-    private static final int AM_PM_STYLE_NORMAL  = 0;
-    private static final int AM_PM_STYLE_SMALL   = 1;
-    private static final int AM_PM_STYLE_GONE    = 2;
+    private static final int AM_PM_SIZE_NORMAL  = 0;
+    private static final int AM_PM_SIZE_SMALL   = 1;
 
-    private int AM_PM_STYLE = AM_PM_STYLE_GONE;
+    private int AM_PM_SIZE = AM_PM_SIZE_SMALL;
 
-    private static final int WEEKDAY_STYLE_NORMAL = 0;
-    private static final int WEEKDAY_STYLE_SMALL  = 1;
-    private static final int WEEKDAY_STYLE_GONE   = 2;
+    private boolean SHOW_AM_PM = false;
 
-    private int WEEKDAY_STYLE = WEEKDAY_STYLE_GONE;
+    private static final int WEEKDAY_SIZE_NORMAL = 0;
+    private static final int WEEKDAY_SIZE_SMALL  = 1;
 
-    private static final int DAYMONTH_STYLE_NORMAL = 0;
-    private static final int DAYMONTH_STYLE_SMALL  = 1;
-    private static final int DAYMONTH_STYLE_GONE   = 2;
+    private int WEEKDAY_SIZE = WEEKDAY_SIZE_SMALL;
 
-    private int DAYMONTH_STYLE = DAYMONTH_STYLE_GONE;
+    private boolean SHOW_WEEKDAY = false;
 
-    private int mAmPmStyle;
-    private int mWeekdayStyle;
-    private int mDaymonthStyle;
+    private static final int DAYMONTH_SIZE_NORMAL = 0;
+    private static final int DAYMONTH_SIZE_SMALL  = 1;
+
+    private int DAYMONTH_SIZE = DAYMONTH_SIZE_SMALL;
+
+    private boolean SHOW_DAYMONTH = false;
+
+    private int mAmPmSize;
+    private int mWeekdaySize;
+    private int mDaymonthSize;
     private boolean mShowClock;
+    private boolean mShowAmPm;
+    private boolean mShowWeekday;
+    private boolean mShowDaymonth;
     private boolean mShowAlways;
     private boolean mShowMore;
 
@@ -93,11 +100,17 @@ public class Clock extends TextView {
         void observe() {
             ContentResolver resolver = mContext.getContentResolver();
             resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.STATUS_BAR_AM_PM), false, this);
+                    Settings.System.STATUS_BAR_AM_PM_SIZE), false, this);
             resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.STATUS_BAR_WEEKDAY), false, this);
+                    Settings.System.STATUS_BAR_SHOW_AM_PM), false, this);
             resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.STATUS_BAR_DAYMONTH), false, this);
+                    Settings.System.STATUS_BAR_WEEKDAY_SIZE), false, this);
+            resolver.registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.STATUS_BAR_SHOW_WEEKDAY), false, this);
+            resolver.registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.STATUS_BAR_DAYMONTH_SIZE), false, this);
+            resolver.registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.STATUS_BAR_SHOW_DAYMONTH), false, this);
         }
 
         @Override
@@ -204,7 +217,7 @@ public class Clock extends TextView {
              * add dummy characters around it to let us find it again after
              * formatting and change its size.
              */
-            if (AM_PM_STYLE != AM_PM_STYLE_NORMAL) {
+            if (AM_PM_SIZE != AM_PM_SIZE_NORMAL || !mShowAmPm) {
                 int a = -1;
                 boolean quoted = false;
                 for (int i = 0; i < format.length(); i++) {
@@ -244,14 +257,15 @@ public class Clock extends TextView {
             Calendar calendar = Calendar.getInstance();
             int day = calendar.get(Calendar.DAY_OF_WEEK);
             int month = calendar.get(Calendar.MONTH);
+
             String dayofmonth = String.valueOf(calendar.get(Calendar.DAY_OF_MONTH));
 
-            if (DAYMONTH_STYLE != DAYMONTH_STYLE_GONE) {
+            if (mShowDaymonth) {
                 currentMonth = getMonth(month);
                 result = dayofmonth + " " + currentMonth + result;
             }
 
-            if (WEEKDAY_STYLE != WEEKDAY_STYLE_GONE) {
+            if (mShowWeekday) {
                 currentDay = getDay(day);
                 result = currentDay + result;
             }
@@ -259,41 +273,39 @@ public class Clock extends TextView {
 
         SpannableStringBuilder formatted = new SpannableStringBuilder(result);
 
-        if (AM_PM_STYLE != AM_PM_STYLE_NORMAL) {
-            int magic1 = result.indexOf(MAGIC1);
-            int magic2 = result.indexOf(MAGIC2);
-            if (magic1 >= 0 && magic2 > magic1) {
-                if (AM_PM_STYLE == AM_PM_STYLE_GONE) {
-                    formatted.delete(magic1, magic2+1);
-                } else {
-                    if (AM_PM_STYLE == AM_PM_STYLE_SMALL) {
-                        CharacterStyle style = new RelativeSizeSpan(0.7f);
-                        formatted.setSpan(style, magic1, magic2,
-                                          Spannable.SPAN_EXCLUSIVE_INCLUSIVE);
-                    }
-                    formatted.delete(magic2, magic2 + 1);
-                    formatted.delete(magic1, magic1 + 1);
+        int magic1 = result.indexOf(MAGIC1);
+        int magic2 = result.indexOf(MAGIC2);
+        if (magic1 >= 0 && magic2 > magic1) {
+            if (!mShowAmPm) {
+                formatted.delete(magic1, magic2+1);
+            } else {
+                if (AM_PM_SIZE == AM_PM_SIZE_SMALL) {
+                    CharacterStyle style = new RelativeSizeSpan(0.7f);
+                    formatted.setSpan(style, magic1, magic2,
+                            Spannable.SPAN_EXCLUSIVE_INCLUSIVE);
                 }
+                formatted.delete(magic2, magic2 + 1);
+                formatted.delete(magic1, magic1 + 1);
             }
         }
 
         if(mShowMore) {
-            if (WEEKDAY_STYLE != WEEKDAY_STYLE_NORMAL) {
+            if (WEEKDAY_SIZE != WEEKDAY_SIZE_NORMAL) {
                 if (currentDay != null) {
-                    if (WEEKDAY_STYLE == WEEKDAY_STYLE_GONE) {
+                    if (!mShowWeekday) {
                         formatted.delete(result.indexOf(currentDay), result.lastIndexOf(currentDay)+currentDay.length());
-                    } else if (WEEKDAY_STYLE == WEEKDAY_STYLE_SMALL) {
+                    } else if (WEEKDAY_SIZE == WEEKDAY_SIZE_SMALL) {
                             CharacterStyle style = new RelativeSizeSpan(0.7f);
                             formatted.setSpan(style, result.indexOf(currentDay), result.lastIndexOf(currentDay)+currentDay.length(), Spannable.SPAN_EXCLUSIVE_INCLUSIVE);
                     }
                 }
             }
 
-            if (DAYMONTH_STYLE != DAYMONTH_STYLE_NORMAL) {
+            if (DAYMONTH_SIZE != DAYMONTH_SIZE_NORMAL) {
                 if (currentMonth != null) {
-                    if (DAYMONTH_STYLE == DAYMONTH_STYLE_GONE) {
+                    if (!mShowDaymonth) {
                         formatted.delete(result.indexOf(currentMonth), result.lastIndexOf(currentMonth)+currentMonth.length());
-                    } else if (DAYMONTH_STYLE == DAYMONTH_STYLE_SMALL) {
+                    } else if (DAYMONTH_SIZE == DAYMONTH_SIZE_SMALL) {
                             CharacterStyle style = new RelativeSizeSpan(0.7f);
                             formatted.setSpan(style, result.indexOf(currentMonth), result.lastIndexOf(currentMonth)+currentMonth.length(), Spannable.SPAN_EXCLUSIVE_INCLUSIVE);
                     }
@@ -378,42 +390,53 @@ public class Clock extends TextView {
     private void updateSettings(){
         ContentResolver resolver = mContext.getContentResolver();
 
-        mAmPmStyle = (Settings.System.getInt(resolver,
-            Settings.System.STATUS_BAR_AM_PM, 2));
+        mShowAmPm = (Settings.System.getInt(resolver,
+                Settings.System.STATUS_BAR_SHOW_AM_PM, 0) == 1);
+        mAmPmSize = (Settings.System.getInt(resolver,
+                Settings.System.STATUS_BAR_AM_PM_SIZE, 1));
+
         if(mShowMore) {
-            mWeekdayStyle = (Settings.System.getInt(resolver,
-                    Settings.System.STATUS_BAR_WEEKDAY, 2));
-            mDaymonthStyle = (Settings.System.getInt(resolver,
-                    Settings.System.STATUS_BAR_DAYMONTH, 2));
+            mShowWeekday = (Settings.System.getInt(resolver,
+                    Settings.System.STATUS_BAR_SHOW_WEEKDAY, 0) == 1);
+            mWeekdaySize = (Settings.System.getInt(resolver,
+                    Settings.System.STATUS_BAR_WEEKDAY_SIZE, 1));
+
+            mShowDaymonth = (Settings.System.getInt(resolver,
+                    Settings.System.STATUS_BAR_SHOW_DAYMONTH, 0) == 1);
+            mDaymonthSize = (Settings.System.getInt(resolver,
+                    Settings.System.STATUS_BAR_DAYMONTH_SIZE, 1));
         }
 
-        if (mAmPmStyle != AM_PM_STYLE) {
-            AM_PM_STYLE = mAmPmStyle;
+        if (mAmPmSize != AM_PM_SIZE) {
+            AM_PM_SIZE = mAmPmSize;
             mClockFormatString = "";
+        }
 
-            if (mAttached) {
-                updateClock();
-            }
+        if (mShowAmPm != SHOW_AM_PM) {
+            SHOW_AM_PM = mShowAmPm;
+            mClockFormatString = "";
         }
 
         if(mShowMore) {
-            if (mWeekdayStyle != WEEKDAY_STYLE) {
-                WEEKDAY_STYLE = mWeekdayStyle;
-                mClockFormatString = "";
-
-                if (mAttached) {
-                    updateClock();
-                }
+            if (mWeekdaySize != WEEKDAY_SIZE) {
+                WEEKDAY_SIZE = mWeekdaySize;
             }
 
-            if (mDaymonthStyle != DAYMONTH_STYLE) {
-                DAYMONTH_STYLE = mDaymonthStyle;
-                mClockFormatString = "";
-
-                if (mAttached) {
-                    updateClock();
-                }
+            if (mShowWeekday != SHOW_WEEKDAY) {
+                SHOW_WEEKDAY = mShowWeekday;
             }
+
+            if (mDaymonthSize != DAYMONTH_SIZE) {
+                DAYMONTH_SIZE = mDaymonthSize;
+            }
+
+            if (mShowDaymonth != SHOW_DAYMONTH) {
+                SHOW_DAYMONTH = mShowDaymonth;
+            }
+        }
+
+        if (mAttached) {
+            updateClock();
         }
     }
 }
