@@ -185,9 +185,6 @@ public class TabletStatusBarView extends FrameLayout {
         Bitmap bm = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
         Canvas cnv = new Canvas(bm);
 
-        // Clear our background to avoid stacking
-        setBackgroundColor(Color.TRANSPARENT);
-
         if (primary) {
             cnv.drawColor(Settings.System.getInt(mContext.getContentResolver(),
                 Settings.System.NAV_BAR_COLOR, 0xFF000000));
@@ -199,6 +196,7 @@ public class TabletStatusBarView extends FrameLayout {
         Drawable newColor = new BitmapDrawable(bm);
 
         TransitionDrawable transition = new TransitionDrawable(new Drawable[]{oldColor, newColor});
+        transition.setCrossFadeEnabled(true);
         setBackground(transition);
         transition.startTransition(1000);
     }
