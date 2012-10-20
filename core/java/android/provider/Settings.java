@@ -2550,13 +2550,6 @@ public final class Settings {
         public static final String STATUS_BAR_DAYMONTH = "status_bar_daymonth";
 
         /**
-         * Statusbar transparency value
-         * from 0% to 100%
-         * @hide
-         */
-        public static final String STATUS_BAR_TRANSPARENCY = "status_bar_transparency";
-
-        /**
          * Display style of the status bar battery information
          * 0: Display the stock battery information
          * 1: Display cm battery percentage implementation / dont show stock icon

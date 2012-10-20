@@ -18,22 +18,24 @@ package com.android.systemui.statusbar.phone;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
-import android.app.StatusBarManager;
 import android.animation.LayoutTransition;
+import android.app.StatusBarManager;
+import android.database.ContentObserver;
 import android.content.BroadcastReceiver;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
-import android.database.ContentObserver;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Rect;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.TransitionDrawable;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
+import android.graphics.PorterDuff.Mode;
+import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Message;
 import android.os.ServiceManager;
@@ -209,19 +211,26 @@ public class NavigationBarView extends LinearLayout {
         mBackAltIcon = res.getDrawable(R.drawable.ic_sysbar_back_ime);
         mBackAltLandIcon = res.getDrawable(R.drawable.ic_sysbar_back_ime_land);
 
-        mContext.getContentResolver().registerContentObserver(
-            Settings.System.getUriFor(Settings.System.NAV_BAR_COLOR), false, new ContentObserver(new Handler()) {
+        ContentResolver cr = mContext.getContentResolver();
+        Handler handler = new Handler();
+
+        cr.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.NAV_BAR_COLOR), false, new ContentObserver(handler) {
                 @Override
                 public void onChange(boolean selfChange) {
                     updateColor(true);
-                }});
+                }
+            }
+        );
 
-        mContext.getContentResolver().registerContentObserver(
-            Settings.System.getUriFor(Settings.System.NAV_BAR_COLOR_SECONDARY), false, new ContentObserver(new Handler()) {
+        cr.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.NAV_BAR_COLOR_SECONDARY), false, new ContentObserver(handler) {
                 @Override
                 public void onChange(boolean selfChange) {
                     updateColor(false);
-                }});
+                }
+            }
+        );
     }
 
     public class NavBarReceiver extends BroadcastReceiver {
@@ -578,6 +587,9 @@ public class NavigationBarView extends LinearLayout {
         Drawable oldColor = getBackground();
         Bitmap bm = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
         Canvas cnv = new Canvas(bm);
+
+        // Clear our background to avoid stacking
+        setBackgroundColor(Color.TRANSPARENT);
 
         if (primary) {
             cnv.drawColor(Settings.System.getInt(mContext.getContentResolver(),
