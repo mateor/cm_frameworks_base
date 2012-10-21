@@ -149,7 +149,7 @@
             android:paddingLeft="3dip"
             android:gravity="center_vertical|left"
             android:visibility="gone"
-            />
+            android:clickable="false"/>
     </LinearLayout>
         
     <LinearLayout android:id="@+id/ticker"

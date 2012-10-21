@@ -237,7 +237,7 @@
             android:textAppearance="@style/TextAppearance.StatusBar.Expanded.Clock"
             systemui:showAlways="true"
             systemui:showMore="false"
-            />
+            android:clickable="true"/>
     
         <com.android.systemui.statusbar.policy.DateView
             android:id="@+id/date"
