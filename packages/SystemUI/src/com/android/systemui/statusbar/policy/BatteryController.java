@@ -43,8 +43,8 @@ public class BatteryController extends BroadcastReceiver {
     private ArrayList<TextView> mLabelViews = new ArrayList<TextView>();
 
     private static final int BATTERY_STYLE_NORMAL         = 0;
-    private static final int BATTERY_STYLE_TEXT           = 5;
-    private static final int BATTERY_STYLE_PERCENT        = 1;
+    private static final int BATTERY_STYLE_TEXT           = 1;
+    private static final int BATTERY_STYLE_PERCENT        = 2;
     /***
      * BATTERY_STYLE_CIRCLE* cannot be handled in this controller, since we cannot get views from
      * statusbar here. Yet it is listed for completion and not to confuse at future updates
@@ -52,9 +52,9 @@ public class BatteryController extends BroadcastReceiver {
      *
      * set to public to be reused by CircleBattery
      */
-    public  static final int BATTERY_STYLE_CIRCLE         = 2;
-    public  static final int BATTERY_STYLE_CIRCLE_PERCENT = 3;
-    private static final int BATTERY_STYLE_GONE           = 4;
+    public  static final int BATTERY_STYLE_CIRCLE         = 3;
+    public  static final int BATTERY_STYLE_CIRCLE_PERCENT = 4;
+    private static final int BATTERY_STYLE_GONE           = 5;
 
     private static final int BATTERY_ICON_STYLE_NORMAL      = R.drawable.stat_sys_battery;
     private static final int BATTERY_ICON_STYLE_CHARGE      = R.drawable.stat_sys_battery_charge;
