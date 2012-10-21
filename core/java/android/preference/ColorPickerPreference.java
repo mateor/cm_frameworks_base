@@ -30,6 +30,8 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 
+import java.lang.NumberFormatException;
+
 import com.android.internal.R;
 
 /**
@@ -235,30 +237,33 @@ public class ColorPickerPreference extends Preference implements
      * For custom purposes. Not used by ColorPickerPreferrence
      *
      * @param argb
-     * @throws NumberFormatException
+     * @returns int colorcode, wrong input yields in a solid black
      * @author Unknown
      */
     public static int convertToColorInt(String argb) throws NumberFormatException {
+        try {
+            if (argb.startsWith("#")) {
+                argb = argb.replace("#", "");
+            }
 
-        if (argb.startsWith("#")) {
-            argb = argb.replace("#", "");
+            int alpha = -1, red = -1, green = -1, blue = -1;
+
+            if (argb.length() == 8) {
+                alpha = Integer.parseInt(argb.substring(0, 2), 16);
+                red = Integer.parseInt(argb.substring(2, 4), 16);
+                green = Integer.parseInt(argb.substring(4, 6), 16);
+                blue = Integer.parseInt(argb.substring(6, 8), 16);
+            }
+            else if (argb.length() == 6) {
+                alpha = 255;
+                red = Integer.parseInt(argb.substring(0, 2), 16);
+                green = Integer.parseInt(argb.substring(2, 4), 16);
+                blue = Integer.parseInt(argb.substring(4, 6), 16);
+            }
+            return Color.argb(alpha, red, green, blue);
+        } catch(NumberFormatException e) {
+            // We should use androids isUseraMonkey() function here
+            return 0xFF000000;
         }
-
-        int alpha = -1, red = -1, green = -1, blue = -1;
-
-        if (argb.length() == 8) {
-            alpha = Integer.parseInt(argb.substring(0, 2), 16);
-            red = Integer.parseInt(argb.substring(2, 4), 16);
-            green = Integer.parseInt(argb.substring(4, 6), 16);
-            blue = Integer.parseInt(argb.substring(6, 8), 16);
-        }
-        else if (argb.length() == 6) {
-            alpha = 255;
-            red = Integer.parseInt(argb.substring(0, 2), 16);
-            green = Integer.parseInt(argb.substring(2, 4), 16);
-            blue = Integer.parseInt(argb.substring(4, 6), 16);
-        }
-
-        return Color.argb(alpha, red, green, blue);
     }
 }
