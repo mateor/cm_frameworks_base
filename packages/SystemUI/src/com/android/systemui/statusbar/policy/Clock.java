@@ -39,9 +39,9 @@ import android.text.style.RelativeSizeSpan;
 import android.text.style.RelativeSizeSpan;
 import android.text.style.StyleSpan;
 import android.util.AttributeSet;
+import android.util.ExtendedPropertiesUtils;
 import android.view.View;
 import android.widget.TextView;
-import android.util.ExtendedPropertiesUtils;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
