@@ -2567,11 +2567,10 @@ public final class Settings {
         public static final String STATUS_BAR_DAYMONTH_SIZE = "status_bar_daymonth_size";
 
         /**
-         * Statusbar transparency value
-         * from 0% to 100%
+         * Statusbar color. May include alpha
          * @hide
          */
-        public static final String STATUS_BAR_TRANSPARENCY = "status_bar_transparency";
+        public static final String STATUS_BAR_COLOR = "status_bar_color";
 
         /**
          * Display style of the status bar battery information

@@ -305,7 +305,7 @@ public class PhoneStatusBar extends BaseStatusBar {
             resolver.registerContentObserver(Settings.System.getUriFor(
                     Settings.System.SCREEN_BRIGHTNESS_MODE), false, this);
             resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.STATUS_BAR_TRANSPARENCY), false, this);
+                    Settings.System.STATUS_BAR_COLOR), false, this);
             update();
         }
 
@@ -321,7 +321,8 @@ public class PhoneStatusBar extends BaseStatusBar {
                     Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC;
             mBrightnessControl = !autoBrightness && Settings.System.getInt(
                     resolver, Settings.System.STATUS_BAR_BRIGHTNESS_CONTROL, 0) == 1;
-            setStatusBarParams(mStatusBarView);
+            mStatusBarView.setBackgroundColor(Settings.System.getInt(resolver,
+                Settings.System.STATUS_BAR_COLOR, 0xFF000000));
         }
     }
 
@@ -451,6 +452,8 @@ public class PhoneStatusBar extends BaseStatusBar {
             }});
 
         mStatusBarView = (PhoneStatusBarView) mStatusBarWindow.findViewById(R.id.status_bar);
+        mStatusBarView.setBackgroundColor(Settings.System.getInt(mContext.getContentResolver(),
+                Settings.System.STATUS_BAR_COLOR, 0xFF000000));
 
         // watch DO_NOT_DISTURB and convert to appropriate disable() calls
         mDoNotDisturb = new DoNotDisturb(mContext);
@@ -2599,12 +2602,6 @@ public class PhoneStatusBar extends BaseStatusBar {
         }
     }
 
-    protected void setStatusBarParams(View statusbarView){
-        int opacity = Settings.System.getInt(mContext.getContentResolver(),
-                Settings.System.STATUS_BAR_TRANSPARENCY, 100);
-        statusbarView.getBackground().setAlpha(Math.round((opacity * 255) / 100));
-    }
-
     private void recreateStatusBar() {
         mRecreating = true;
         mStatusBarContainer.removeAllViews();
@@ -2668,7 +2665,6 @@ public class PhoneStatusBar extends BaseStatusBar {
                 (mCurrentTheme == null || !mCurrentTheme.equals(newTheme))) {
             mCurrentTheme = (CustomTheme)newTheme.clone();
             recreateStatusBar();
-            setStatusBarParams(mStatusBarView);
         } else {
 
             if (mClearButton instanceof TextView) {
