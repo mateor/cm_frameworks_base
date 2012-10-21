@@ -240,7 +240,7 @@ public class ColorPickerPreference extends Preference implements
      * @returns int colorcode, wrong input yields in a solid black
      * @author Unknown
      */
-    public static int convertToColorInt(String argb) throws NumberFormatException {
+    public static int convertToColorInt(String argb) {
         try {
             if (argb.startsWith("#")) {
                 argb = argb.replace("#", "");
