@@ -2344,36 +2344,53 @@ public final class Settings {
 
         /**
          * Enable toggles on statusbar
+         * 0 = Disable toggle
+         * 1 = Enable toggles
          * @hide
          */
         public static final String STATUSBAR_TOGGLES_ENABLE = "statusbar_toggles_enable";
 
         /**
          * Toggles to use on statusbar
+         * Any combination, use "|" as divider:
+         * ROTATE, BLUETOOTH, GPS, LTE, DATA, WIFI, 2G, AP, AIRPLANE_MODE, VIBRATE,
+         * SILENT, TORCH, SYNC, TETHER, NFC, DONOTDISTURB
          * @hide
          */
         public static final String STATUSBAR_TOGGLES = "statusbar_toggles";
 
         /**
+         * Allows to switch between the different toggle layouts
+         * 0 = Switch
+         * 1 = Toggle
+         * 2 = Holo
+         * 3 = Multirow
+         * @hide
+         */
+        public static final String STATUSBAR_TOGGLES_LAYOUT = "statusbar_toggles_layout";
+
+        /**
          * Style of the toggles
+         * 1 = None
+         * 2 = Icon
+         * 3 = Text
+         * 4 = Icon-Text
          * @hide
          */
         public static final String STATUSBAR_TOGGLES_STYLE = "statusbar_toggles_style";
 
         /**
-         * Allows to switch between the different toggle layouts
-         * @hide
-         */
-        public static final String STATUSBAR_TOGGLES_USE_BUTTONS = "statusbar_toggles_use_buttons";
-
-        /**
          * Whether to show brightness on toggles view
+         * 0 = Show brightness slider
+         * 1 = Hide brightness slider
          * @hide
          */
         public static final String STATUSBAR_TOGGLES_SHOW_BRIGHTNESS = "statusbar_toggles_show_brightness";
 
         /**
          * Disable scrolling on non-switched toggle layouts
+         * 0 = Enable scroll
+         * 1 = Disable scroll
          * @hide
          */
         public static final String STATUSBAR_TOGGLES_DISABLE_SCROLL = "statusbar_toggles_disable_scroll";
