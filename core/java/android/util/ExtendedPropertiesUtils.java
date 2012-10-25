@@ -113,7 +113,7 @@ public class ExtendedPropertiesUtils {
         public int large;
         public float scaledDensity;
         public float density;
-        public String [] colors = {"", "", "", ""};
+        public String[] colors = new String[4];
     }
 
     /**
@@ -163,11 +163,11 @@ public class ExtendedPropertiesUtils {
             info.large = Integer.parseInt(getProperty(info.name + PARANOID_LARGE_SUFFIX));
 
             // Color parameters
-            String mColors = getProperty(info.name + PARANOID_COLORS_SUFFIX);
-            String[] mColorArray = mColors.split(PARANOID_STRING_DELIMITER);
-            if (mColorArray.length == PARANOID_COLORS_COUNT) {
-                for(int i=0; i < mColorArray.length; i++) {
-                    info.colors[i] = mColorArray[i].toUpperCase();
+            String[] colors = getProperty(info.name +
+                    PARANOID_COLORS_SUFFIX).split(PARANOID_STRING_DELIMITER);
+            if (colors.length == PARANOID_COLORS_COUNT) {
+                for(int i=0; i < colors.length; i++) {
+                    info.colors[i] = colors[i].toUpperCase();
                 }
             }
 

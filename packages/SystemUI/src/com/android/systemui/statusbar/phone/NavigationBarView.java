@@ -581,11 +581,11 @@ public class NavigationBarView extends LinearLayout {
         }
 
         String mSetting = Settings.System.getString(mContext.getContentResolver(),
-            Settings.System.NAV_BAR_COLOR);
+                Settings.System.NAV_BAR_COLOR);
         String[] mColors = (mSetting == null || mSetting.equals("") ?
-            ExtendedPropertiesUtils.PARANOID_COLORS_DEFAULTS[
-            ExtendedPropertiesUtils.PARANOID_COLORS_NAVBAR] : mSetting).split(
-            ExtendedPropertiesUtils.PARANOID_STRING_DELIMITER);
+                ExtendedPropertiesUtils.PARANOID_COLORS_DEFAULTS[
+                ExtendedPropertiesUtils.PARANOID_COLORS_NAVBAR] : mSetting).split(
+                ExtendedPropertiesUtils.PARANOID_STRING_DELIMITER);
         String mCurColor = mColors[Integer.parseInt(mColors[2])];
         
         Bitmap bm = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
@@ -593,7 +593,7 @@ public class NavigationBarView extends LinearLayout {
         cnv.drawColor(new BigInteger(mCurColor, 16).intValue());
 
         TransitionDrawable transition = new TransitionDrawable(new Drawable[]{
-            getBackground(), new BitmapDrawable(bm)});
+                getBackground(), new BitmapDrawable(bm)});
         transition.setCrossFadeEnabled(true);
         setBackground(transition);
         transition.startTransition(1000);

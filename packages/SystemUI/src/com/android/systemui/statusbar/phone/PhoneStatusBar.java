@@ -39,20 +39,20 @@ import android.content.res.CustomTheme;
 import android.content.res.Resources;
 import android.database.ContentObserver;
 import android.graphics.Bitmap;
-import android.graphics.Color;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.ColorFilter;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.NinePatchDrawable;
+import android.graphics.drawable.TransitionDrawable;
 import android.graphics.PorterDuff.Mode;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.Drawable;
-import android.graphics.drawable.TransitionDrawable;
-import android.graphics.drawable.NinePatchDrawable;
 import android.inputmethodservice.InputMethodService;
 import android.os.Handler;
 import android.os.IBinder;
@@ -120,8 +120,8 @@ import com.android.systemui.statusbar.policy.NotificationRowLayout;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
-import java.util.ArrayList;
 import java.math.BigInteger;
+import java.util.ArrayList;
 
 public class PhoneStatusBar extends BaseStatusBar {
     static final String TAG = "PhoneStatusBar";
@@ -340,12 +340,12 @@ public class PhoneStatusBar extends BaseStatusBar {
         }
 
         String mSetting = Settings.System.getString(mContext.getContentResolver(),
-            Settings.System.STATUS_BAR_COLOR);
+                Settings.System.STATUS_BAR_COLOR);
 
         String[] mColors = (mSetting == null || mSetting.equals("") ?
-            ExtendedPropertiesUtils.PARANOID_COLORS_DEFAULTS[
-            ExtendedPropertiesUtils.PARANOID_COLORS_STATBAR] : mSetting).split(
-            ExtendedPropertiesUtils.PARANOID_STRING_DELIMITER);
+                ExtendedPropertiesUtils.PARANOID_COLORS_DEFAULTS[
+                ExtendedPropertiesUtils.PARANOID_COLORS_STATBAR] : mSetting).split(
+                ExtendedPropertiesUtils.PARANOID_STRING_DELIMITER);
         String mCurColor = mColors[Integer.parseInt(mColors[2])];
 
         Bitmap bm = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
@@ -353,7 +353,7 @@ public class PhoneStatusBar extends BaseStatusBar {
         cnv.drawColor(new BigInteger(mCurColor, 16).intValue());
 
         TransitionDrawable transition = new TransitionDrawable(new Drawable[]{
-            mStatusBarView.getBackground(), new BitmapDrawable(bm)});
+                mStatusBarView.getBackground(), new BitmapDrawable(bm)});
         transition.setCrossFadeEnabled(true);
         mStatusBarView.setBackground(transition);
         transition.startTransition(1000);

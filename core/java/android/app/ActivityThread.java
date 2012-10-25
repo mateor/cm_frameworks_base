@@ -2699,31 +2699,31 @@ public final class ActivityThread {
                     try {
                         for (int i = 0; i < ExtendedPropertiesUtils.PARANOID_COLORS_COUNT; i++) {
                             // Fetch defaults
-                            String mSetting = Settings.System.getString(r.activity.getContentResolver(),
-                                ExtendedPropertiesUtils.PARANOID_COLORS_SETTINGS[i]);
+                            String setting = Settings.System.getString(r.activity.getContentResolver(),
+                                    ExtendedPropertiesUtils.PARANOID_COLORS_SETTINGS[i]);
 
-                            String[] mColors = (mSetting == null || mSetting.equals("") ?
-                                ExtendedPropertiesUtils.PARANOID_COLORS_DEFAULTS[i] : mSetting).split(
-                                ExtendedPropertiesUtils.PARANOID_STRING_DELIMITER);
+                            String[] colors = (setting == null || setting.equals("") ?
+                                   ExtendedPropertiesUtils.PARANOID_COLORS_DEFAULTS[i] : setting).split(
+                                   ExtendedPropertiesUtils.PARANOID_STRING_DELIMITER);
 
                             // Sanity check
-                            if (mColors.length != 3) {
-                                mColors = ExtendedPropertiesUtils.PARANOID_COLORS_DEFAULTS[i].split(
-                                    ExtendedPropertiesUtils.PARANOID_STRING_DELIMITER);
+                            if (colors.length != 3) {
+                                colors = ExtendedPropertiesUtils.PARANOID_COLORS_DEFAULTS[i].split(
+                                       ExtendedPropertiesUtils.PARANOID_STRING_DELIMITER);
                                 Settings.System.putString(r.activity.getContentResolver(),
-                                    ExtendedPropertiesUtils.PARANOID_COLORS_SETTINGS[i], 
-                                    ExtendedPropertiesUtils.PARANOID_COLORS_DEFAULTS[i]);
+                                       ExtendedPropertiesUtils.PARANOID_COLORS_SETTINGS[i],
+                                       ExtendedPropertiesUtils.PARANOID_COLORS_DEFAULTS[i]);
                             }
 
                             // Change color
-                            String mCurColor = mColors[Integer.parseInt(mColors[2])];
+                            String mCurColor = colors[Integer.parseInt(colors[2])];
                             String mAppColor = ExtendedPropertiesUtils.mGlobalHook.colors[i];
-                            String mNexColor = mAppColor.equals("") ? mColors[0] : mAppColor;
+                            String mNexColor = mAppColor.equals("") ? colors[0] : mAppColor;
 
                             if (mNexColor != mCurColor) {
                                 Settings.System.putString(r.activity.getContentResolver(),
-                                    ExtendedPropertiesUtils.PARANOID_COLORS_SETTINGS[i], 
-                                    mColors[0] + "|" + mNexColor + "|1");
+                                       ExtendedPropertiesUtils.PARANOID_COLORS_SETTINGS[i],
+                                       colors[0] + "|" + mNexColor + "|1");
                             }
                         }
                     } catch (Exception e) {

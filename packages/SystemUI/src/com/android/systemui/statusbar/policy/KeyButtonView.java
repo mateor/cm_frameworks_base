@@ -34,7 +34,6 @@ import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.AttributeSet;
 import android.util.ExtendedPropertiesUtils;
-import android.util.Log;
 import android.view.HapticFeedbackConstants;
 import android.view.InputDevice;
 import android.view.KeyCharacterMap;
@@ -140,16 +139,16 @@ public class KeyButtonView extends ImageView {
         }
 
         String mSetting = Settings.System.getString(mContext.getContentResolver(),
-            Settings.System.NAV_BUTTON_COLOR);
+                Settings.System.NAV_BUTTON_COLOR);
 
         String[] mButtonColors = (mSetting == null || mSetting.equals("") ?
-            ExtendedPropertiesUtils.PARANOID_COLORS_DEFAULTS[
-            ExtendedPropertiesUtils.PARANOID_COLORS_NAVBUTTON] : mSetting).split(
-            ExtendedPropertiesUtils.PARANOID_STRING_DELIMITER);
+                ExtendedPropertiesUtils.PARANOID_COLORS_DEFAULTS[
+                ExtendedPropertiesUtils.PARANOID_COLORS_NAVBUTTON] : mSetting).split(
+                ExtendedPropertiesUtils.PARANOID_STRING_DELIMITER);
         String mCurButtonColor = mButtonColors[Integer.parseInt(mButtonColors[2])];
 
         setColorFilter(new BigInteger("FF" + mCurButtonColor.substring(2), 16).intValue(),
-            PorterDuff.Mode.SRC_ATOP);
+                PorterDuff.Mode.SRC_ATOP);
 
         BUTTON_QUIESCENT_ALPHA = (float)new BigInteger(mCurButtonColor.substring(0, 2), 16).intValue() / 255f;
         setDrawingAlpha(BUTTON_QUIESCENT_ALPHA);
@@ -157,16 +156,16 @@ public class KeyButtonView extends ImageView {
 
     private void updateGlowColor() {
         String mSetting = Settings.System.getString(mContext.getContentResolver(),
-            Settings.System.NAV_GLOW_COLOR);
+                Settings.System.NAV_GLOW_COLOR);
 
         String[] mGlowColors = (mSetting == null || mSetting.equals("") ?
-            ExtendedPropertiesUtils.PARANOID_COLORS_DEFAULTS[
-            ExtendedPropertiesUtils.PARANOID_COLORS_NAVGLOW] : mSetting).split(
-            ExtendedPropertiesUtils.PARANOID_STRING_DELIMITER);
+                ExtendedPropertiesUtils.PARANOID_COLORS_DEFAULTS[
+                ExtendedPropertiesUtils.PARANOID_COLORS_NAVGLOW] : mSetting).split(
+                ExtendedPropertiesUtils.PARANOID_STRING_DELIMITER);
         String mCurGlowColor = mGlowColors[Integer.parseInt(mGlowColors[2])];
 
         mGlowBG.setColorFilter(new BigInteger(mCurGlowColor, 16).intValue(),
-            PorterDuff.Mode.SRC_ATOP);
+                PorterDuff.Mode.SRC_ATOP);
     }
 
     @Override
