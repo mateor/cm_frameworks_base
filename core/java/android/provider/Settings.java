@@ -2662,6 +2662,14 @@ public final class Settings {
         public static final String STATUS_BAR_DONOTDISTURB = "statusbar_donotdisturb";
 
         /**
+         * Whether to show settings on notification layouts
+         * 0 = Show settings
+         * 1 = Hide settings
+         * @hide
+         */
+        public static final String STATUS_BAR_SHOW_SETTINGS = "statusbar_show_settings";
+
+        /**
          * Statusbar State
          * @hide
          */

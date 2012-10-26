@@ -22,21 +22,20 @@ import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.content.Context;
 import android.graphics.Rect;
+import android.provider.Settings;
 import android.util.AttributeSet;
 import android.util.Slog;
-import android.view.Display;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
-import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
-import android.view.WindowManager;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 
 import com.android.systemui.ExpandHelper;
@@ -114,7 +113,7 @@ public class NotificationPanel extends RelativeLayout implements StatusBarPanel,
     }
 
     @Override
-    protected void onAttachedToWindow () {
+    protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         latestItems = (NotificationRowLayout) findViewById(R.id.content);
         int minHeight = getResources().getDimensionPixelSize(R.dimen.notification_row_min_height);
@@ -191,7 +190,18 @@ public class NotificationPanel extends RelativeLayout implements StatusBarPanel,
             mNotificationScroller.setAlpha(1f);
             mNotificationScroller.scrollTo(0, 0);
             updatePanelModeButtons();
+        } else {
+            setSettingsVisibility();
         }
+    }
+
+    private void setSettingsVisibility() {
+        boolean showSettings = Settings.System.getInt(mContext.getContentResolver(),
+                Settings.System.STATUS_BAR_SHOW_SETTINGS, 1) == 1;
+        int visibility = showSettings ? View.VISIBLE : View.GONE;
+
+        LinearLayout settings = (LinearLayout) mSettingsView.findViewById(R.id.settings);
+        settings.setVisibility(visibility);
     }
 
     @Override
@@ -209,7 +219,7 @@ public class NotificationPanel extends RelativeLayout implements StatusBarPanel,
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-    final int keyCode = event.getKeyCode();
+        final int keyCode = event.getKeyCode();
         switch (keyCode) {
             // We exclusively handle the back key by hiding this panel.
             case KeyEvent.KEYCODE_BACK: {
@@ -335,7 +345,6 @@ public class NotificationPanel extends RelativeLayout implements StatusBarPanel,
 
     private class Choreographer implements Animator.AnimatorListener {
         boolean mVisible;
-        int mPanelHeight;
         AnimatorSet mContentAnim;
 
         // should group this into a multi-property animation
