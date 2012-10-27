@@ -150,7 +150,7 @@ public class TogglesView extends LinearLayout {
     private void addViews() {
         removeViews();
         boolean disableScroll = Settings.System.getInt(mContext.getContentResolver(),
-                Settings.System.STATUSBAR_TOGGLES_DISABLE_SCROLL,
+                Settings.System.STATUS_BAR_TOGGLES_DISABLE_SCROLL,
                 0) == 1;
 
         for (int i = 0; i < toggles.size(); i++) {
@@ -246,19 +246,19 @@ public class TogglesView extends LinearLayout {
         void observe() {
             ContentResolver resolver = mContext.getContentResolver();
             resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.STATUSBAR_TOGGLES_ENABLE), false, this);
+                    Settings.System.STATUS_BAR_TOGGLES_ENABLE), false, this);
             resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.STATUSBAR_TOGGLES), false, this);
+                    Settings.System.STATUS_BAR_TOGGLES), false, this);
             resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.STATUSBAR_TOGGLES_STYLE), false,
+                    Settings.System.STATUS_BAR_TOGGLES_STYLE), false,
                     this);
             resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.STATUSBAR_TOGGLES_DISABLE_SCROLL), false,
+                    Settings.System.STATUS_BAR_TOGGLES_DISABLE_SCROLL), false,
                     this);
             resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.STATUSBAR_TOGGLES_LAYOUT),false, this);
+                    Settings.System.STATUS_BAR_TOGGLES_LAYOUT),false, this);
             resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.STATUSBAR_TOGGLES_SHOW_BRIGHTNESS),
+                    Settings.System.STATUS_BAR_TOGGLES_SHOW_BRIGHTNESS),
                     false, this);
             updateSettings();
         }
@@ -273,14 +273,14 @@ public class TogglesView extends LinearLayout {
         ContentResolver resolver = mContext.getContentResolver();
 
         mShowBrightness = Settings.System.getInt(resolver,
-                Settings.System.STATUSBAR_TOGGLES_SHOW_BRIGHTNESS,
+                Settings.System.STATUS_BAR_TOGGLES_SHOW_BRIGHTNESS,
                 0) == 1;
 
         String selectedToggles = Settings.System.getString(resolver,
-                Settings.System.STATUSBAR_TOGGLES);
+                Settings.System.STATUS_BAR_TOGGLES);
 
         boolean enableToggles = Settings.System.getInt(resolver,
-                Settings.System.STATUSBAR_TOGGLES_ENABLE,
+                Settings.System.STATUS_BAR_TOGGLES_ENABLE,
                 0) == 1;
 
         // So you don't like toggles?, bad for you!
@@ -292,11 +292,11 @@ public class TogglesView extends LinearLayout {
         }
 
         mToggleStyle = Settings.System.getInt(resolver,
-                Settings.System.STATUSBAR_TOGGLES_STYLE, STYLE_ICON);
+                Settings.System.STATUS_BAR_TOGGLES_STYLE, STYLE_ICON);
 
         int layout = Settings.System.getInt(
                 mContext.getContentResolver(),
-                Settings.System.STATUSBAR_TOGGLES_LAYOUT, LAYOUT_TOGGLE);
+                Settings.System.STATUS_BAR_TOGGLES_LAYOUT, LAYOUT_TOGGLE);
 
         if (layout == LAYOUT_BUTTON && mToggleStyle != STYLE_ICON) {
             mToggleStyle = STYLE_ICON;

@@ -2343,59 +2343,6 @@ public final class Settings {
         public static final String POINTER_SPEED = "pointer_speed";
 
         /**
-         * Enable toggles on statusbar
-         * 0 = Disable toggle
-         * 1 = Enable toggles
-         * @hide
-         */
-        public static final String STATUSBAR_TOGGLES_ENABLE = "statusbar_toggles_enable";
-
-        /**
-         * Toggles to use on statusbar
-         * Any combination, use "|" as divider:
-         * ROTATE, BLUETOOTH, GPS, LTE, DATA, WIFI, 2G, AP, AIRPLANE_MODE, VIBRATE,
-         * SILENT, TORCH, SYNC, TETHER, NFC, DONOTDISTURB
-         * @hide
-         */
-        public static final String STATUSBAR_TOGGLES = "statusbar_toggles";
-
-        /**
-         * Allows to switch between the different toggle layouts
-         * 0 = Switch
-         * 1 = Toggle
-         * 2 = Holo
-         * 3 = Multirow
-         * @hide
-         */
-        public static final String STATUSBAR_TOGGLES_LAYOUT = "statusbar_toggles_layout";
-
-        /**
-         * Style of the toggles
-         * 1 = None
-         * 2 = Icon
-         * 3 = Text
-         * 4 = Icon-Text
-         * @hide
-         */
-        public static final String STATUSBAR_TOGGLES_STYLE = "statusbar_toggles_style";
-
-        /**
-         * Whether to show brightness on toggles view
-         * 0 = Show brightness slider
-         * 1 = Hide brightness slider
-         * @hide
-         */
-        public static final String STATUSBAR_TOGGLES_SHOW_BRIGHTNESS = "statusbar_toggles_show_brightness";
-
-        /**
-         * Disable scrolling on non-switched toggle layouts
-         * 0 = Enable scroll
-         * 1 = Disable scroll
-         * @hide
-         */
-        public static final String STATUSBAR_TOGGLES_DISABLE_SCROLL = "statusbar_toggles_disable_scroll";
-
-        /**
          * Navigation bar, whether to show or hide
          * @hide
          */
@@ -2632,6 +2579,71 @@ public final class Settings {
          */
         public static final String STATUS_BAR_IME_SWITCHER = "status_bar_ime_switcher";
 
+        /**
+         * Enable toggles on statusbar
+         * 0 = Disable toggle
+         * 1 = Enable toggles
+         * @hide
+         */
+        public static final String STATUS_BAR_TOGGLES_ENABLE = "statusbar_toggles_enable";
+
+        /**
+         * Toggles to use on statusbar
+         * Any combination, use "|" as divider:
+         * ROTATE, BLUETOOTH, GPS, LTE, DATA, WIFI, 2G, AP, AIRPLANE_MODE, VIBRATE,
+         * SILENT, TORCH, SYNC, TETHER, NFC, DONOTDISTURB
+         * @hide
+         */
+        public static final String STATUS_BAR_TOGGLES = "statusbar_toggles";
+
+        /**
+         * Allows to switch between the different toggle layouts
+         * 0 = Switch
+         * 1 = Toggle
+         * 2 = Holo
+         * 3 = Multirow
+         * @hide
+         */
+        public static final String STATUS_BAR_TOGGLES_LAYOUT = "statusbar_toggles_layout";
+
+        /**
+         * Style of the toggles
+         * 1 = None
+         * 2 = Icon
+         * 3 = Text
+         * 4 = Icon-Text
+         * @hide
+         */
+        public static final String STATUS_BAR_TOGGLES_STYLE = "statusbar_toggles_style";
+
+        /**
+         * Color scheme of the toggles layout (if applicable)
+         * @hide
+         */
+        public static final String STATUS_BAR_TOGGLES_COLOR = "statusbar_toggles_color";
+
+        /**
+         * Whether to show brightness on toggles view
+         * 0 = Show brightness slider
+         * 1 = Hide brightness slider
+         * @hide
+         */
+        public static final String STATUS_BAR_TOGGLES_SHOW_BRIGHTNESS = "statusbar_toggles_show_brightness";
+
+        /**
+         * Disable scrolling on non-switched toggle layouts
+         * 0 = Enable scroll
+         * 1 = Disable scroll
+         * @hide
+         */
+        public static final String STATUS_BAR_TOGGLES_DISABLE_SCROLL = "statusbar_toggles_disable_scroll";
+
+        /**
+         * Statusbar do not disturb
+         * @hide
+         */
+        public static final String STATUS_BAR_DONOTDISTURB = "statusbar_donotdisturb";
+
          /**
          * Expanded desktop
          * 0: Disabled
@@ -2639,12 +2651,6 @@ public final class Settings {
          * @hide
          */
         public static final String EXPANDED_DESKTOP_STATE = "expanded_desktop_state";
-
-        /**
-         * Statusbar do not disturb
-         * @hide
-         */
-        public static final String STATUS_BAR_DONOTDISTURB = "statusbar_donotdisturb";
 
         /**
          * Whether to use a separate delay for "slide to unlock" and security
