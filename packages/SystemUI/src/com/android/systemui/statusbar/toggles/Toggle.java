@@ -35,6 +35,8 @@ import android.widget.TextView;
 import com.android.internal.statusbar.IStatusBarService;
 import com.android.systemui.R;
 
+import java.math.BigInteger;
+
 /**
  * TODO: Listen for changes to the setting.
  */
@@ -62,12 +64,13 @@ public abstract class Toggle implements OnCheckedChangeListener {
     public Toggle(Context context) {
         mContext = context;
 
-        mLayout = Settings.System.getInt(
-                context.getContentResolver(),
+        mLayout = Settings.System.getInt(context.getContentResolver(),
                 Settings.System.STATUS_BAR_TOGGLES_LAYOUT, TogglesView.LAYOUT_TOGGLE);
 
-        defaultColor = context.getResources().getColor(
-            com.android.internal.R.color.holo_blue_light);
+        String color = Settings.System.getString(context.getContentResolver(),
+                Settings.System.STATUS_BAR_TOGGLES_COLOR);
+        // Default to holo blue light
+        defaultColor = new BigInteger(color != null ? color : "FF33B5E5", 16).intValue();
 
         float[] hsv = new float[3];
         Color.colorToHSV(defaultColor, hsv);

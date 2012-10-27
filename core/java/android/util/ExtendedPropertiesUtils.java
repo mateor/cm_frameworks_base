@@ -43,7 +43,7 @@ import java.util.List;
 
 public class ExtendedPropertiesUtils {
  
-    private static final String TAG = "paranoid";
+    private static final String TAG = "ExtendedPropertiesUtils";
 
     /**
      * Public variables
@@ -71,12 +71,12 @@ public class ExtendedPropertiesUtils {
     // Color definitions
     public static final String PARANOID_COLORS_SUFFIX = ".colors";
     public static final int PARANOID_COLORS_COUNT = 4;
-    public static final String [] PARANOID_COLORS_SETTINGS = {Settings.System.NAV_BAR_COLOR,
-        Settings.System.NAV_BUTTON_COLOR, Settings.System.NAV_GLOW_COLOR,
-        Settings.System.STATUS_BAR_COLOR};
-    public static final String [] PARANOID_COLORS_DEFAULTS = {"FF000000|FF000000|0", "B2FFFFFF|B2FFFFFF|0",
-        "FFFFFFFF|FFFFFFFF|0", "FF000000|FF000000|0"};
-    public static final int [] PARANOID_COLORCODES_DEFAULTS = {0xFF000000, 0xB2FFFFFF, 0xFFFFFFFF, 0xFF000000};
+    public static final String[] PARANOID_COLORS_SETTINGS = {Settings.System.NAV_BAR_COLOR,
+            Settings.System.NAV_BUTTON_COLOR, Settings.System.NAV_GLOW_COLOR,
+            Settings.System.STATUS_BAR_COLOR};
+    public static final String[] PARANOID_COLORS_DEFAULTS = {"FF000000|FF000000|0", "B2FFFFFF|B2FFFFFF|0",
+            "FFFFFFFF|FFFFFFFF|0", "FF000000|FF000000|0"};
+    public static final int[] PARANOID_COLORCODES_DEFAULTS = {0xFF000000, 0xB2FFFFFF, 0xFFFFFFFF, 0xFF000000};
     public static final int PARANOID_COLORS_NAVBAR = 0;
     public static final int PARANOID_COLORS_NAVBUTTON = 1;
     public static final int PARANOID_COLORS_NAVGLOW = 2;
