@@ -192,9 +192,9 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
         mExpandDesktopModeOn = new ToggleAction(
                 R.drawable.ic_lock_expanded_desktop,
                 R.drawable.ic_lock_expanded_desktop,
-                R.string.global_actions_expanded_desktop,
-                R.string.global_actions_expanded_desktop_on_status,
-                R.string.global_actions_expanded_desktop_off_status) {
+                R.string.global_actions_toggle_expanded_desktop_mode,
+                R.string.global_actions_expanded_desktop_mode_on_status,
+                R.string.global_actions_expanded_desktop_mode_off_status) {
 
             void onToggle(boolean on) {
                 changeExpandDesktopModeSystemSetting(on);
@@ -347,14 +347,17 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
         }
 
         // next: expanded desktop toggle
-        // only shown if enabled, enabled by default
+        // only shown if enabled, disabled by default
         if(Settings.System.getInt(mContext.getContentResolver(),
-                Settings.System.POWER_MENU_EXPANDED_DESKTOP_ENABLED, 1) == 1){
+                Settings.System.POWER_MENU_EXPANDED_DESKTOP_ENABLED, 0) == 1){
             mItems.add(mExpandDesktopModeOn);
         }
 
         // next: airplane mode
-        mItems.add(mAirplaneModeOn);
+        if (Settings.System.getInt(mContext.getContentResolver(),
+                Settings.System.POWER_MENU_AIRPLANE_ENABLED, 1) == 1) {
+            mItems.add(mAirplaneModeOn);
+        }
 
         // next: users
         List<UserInfo> users = mContext.getPackageManager().getUsers();
@@ -394,7 +397,9 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
         }
 
         // last: silent mode
-        if (SHOW_SILENT_TOGGLE) {
+        if ((Settings.System.getInt(mContext.getContentResolver(),
+                Settings.System.POWER_MENU_SILENT_ENABLED, 1) == 1) &&
+                (SHOW_SILENT_TOGGLE)) {
             mItems.add(mSilentModeAction);
         }
 
