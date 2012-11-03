@@ -1107,7 +1107,7 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
     private void onExpandDesktopModeChanged() {
         boolean expandDesktopModeOn = Settings.System.getInt(
                 mContext.getContentResolver(),
-                Settings.System.POWER_MENU_EXPANDED_DESKTOP_ENABLED,
+                Settings.System.EXPANDED_DESKTOP_STATE,
                 0) == 1;
         mExpandDesktopModeOn.updateState(expandDesktopModeOn ? ToggleAction.State.On : ToggleAction.State.Off);
     }
@@ -1135,7 +1135,7 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
     private void changeExpandDesktopModeSystemSetting(boolean on) {
         Settings.System.putInt(
                 mContext.getContentResolver(),
-                Settings.System.POWER_MENU_EXPANDED_DESKTOP_ENABLED,
+                Settings.System.EXPANDED_DESKTOP_STATE,
                 on ? 1 : 0);
     }
 

@@ -721,7 +721,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             resolver.registerContentObserver(Settings.System.getUriFor(
                     Settings.System.HARDWARE_KEY_REBINDING), false, this);
             resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.POWER_MENU_EXPANDED_DESKTOP_ENABLED), false, this);
+                    Settings.System.EXPANDED_DESKTOP_STATE), false, this);
             if (SEPARATE_TIMEOUT_FOR_SCREEN_SAVER) {
                 resolver.registerContentObserver(Settings.Secure.getUriFor(
                         "screensaver_timeout"), false, this);
@@ -1395,7 +1395,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         // In case that we removed nav bar, set all sizes to 0 again
         if(!mHasNavigationBar){
             if(!mHasSystemNavBar || Settings.System.getInt(mContext.getContentResolver(),
-                    Settings.System.POWER_MENU_EXPANDED_DESKTOP_ENABLED, 0) == 1){
+                    Settings.System.EXPANDED_DESKTOP_STATE, 0) == 1){
                 mNavigationBarWidthForRotation[mPortraitRotation]
                         = mNavigationBarWidthForRotation[mUpsideDownRotation]
                         = mNavigationBarWidthForRotation[mLandscapeRotation]
@@ -1430,7 +1430,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
             mHasNavigationBar = Settings.System.getInt(mContext.getContentResolver(), Settings.System.NAV_BAR_STATUS, 
                     !hasHardwareKeys() ? 1 : 0) == 1 && Settings.System.getInt(mContext.getContentResolver(), 
-                    Settings.System.POWER_MENU_EXPANDED_DESKTOP_ENABLED, 0) != 1 && !mHasSystemNavBar;
+                    Settings.System.EXPANDED_DESKTOP_STATE, 0) != 1 && !mHasSystemNavBar;
 
             getDimensions();
 
@@ -2870,7 +2870,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         // decided that it can't be hidden (because of the screen aspect ratio),
         // then take that into account.
         navVisible |= !mCanHideNavigationBar;
-        navVisible &= (Settings.System.getInt(mContext.getContentResolver(), Settings.System.POWER_MENU_EXPANDED_DESKTOP_ENABLED, 0) == 0);
+        navVisible &= (Settings.System.getInt(mContext.getContentResolver(), Settings.System.EXPANDED_DESKTOP_STATE, 0) == 0);
 
         if (mNavigationBar != null) {
             // Force the navigation bar to its appropriate place and
@@ -3431,7 +3431,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 // and mTopIsFullscreen is that that mTopIsFullscreen is set only if the window
                 // has the FLAG_FULLSCREEN set.  Not sure if there is another way that to be the
                 // case though.
-                if (topIsFullscreen || Settings.System.getInt(mContext.getContentResolver(), Settings.System.POWER_MENU_EXPANDED_DESKTOP_ENABLED, 0) == 1) {
+                if (topIsFullscreen || Settings.System.getInt(mContext.getContentResolver(), Settings.System.EXPANDED_DESKTOP_STATE, 0) == 1) {
                     if (DEBUG_LAYOUT) Log.v(TAG, "** HIDING status bar");
                     if (mStatusBar.hideLw(true)) {
                         changes |= FINISH_LAYOUT_REDO_LAYOUT;
