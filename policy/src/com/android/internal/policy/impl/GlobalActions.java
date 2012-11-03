@@ -347,9 +347,9 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
         }
 
         // next: expanded desktop toggle
-        // only shown if enabled, disabled by default
+        // only shown if enabled, enabled by default
         if(Settings.System.getInt(mContext.getContentResolver(),
-                Settings.System.POWER_MENU_EXPANDED_DESKTOP_ENABLED, 0) == 1){
+                Settings.System.POWER_MENU_EXPANDED_DESKTOP_ENABLED, 1) == 1){
             mItems.add(mExpandDesktopModeOn);
         }
 
