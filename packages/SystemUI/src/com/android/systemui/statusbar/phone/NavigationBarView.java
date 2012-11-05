@@ -570,9 +570,10 @@ public class NavigationBarView extends LinearLayout {
     }
 
     private void updateColor(boolean defaults) {
+        Bitmap bm = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+        Canvas cnv = new Canvas(bm);
+
         if (defaults) {
-            Bitmap bm = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
-            Canvas cnv = new Canvas(bm);
             cnv.drawColor(0xFF000000);
             setBackground(new BitmapDrawable(bm));
             return;
@@ -586,8 +587,6 @@ public class NavigationBarView extends LinearLayout {
                 ExtendedPropertiesUtils.PARANOID_STRING_DELIMITER);
         String currentColor = colors[Integer.parseInt(colors[2])];
         
-        Bitmap bm = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
-        Canvas cnv = new Canvas(bm);
         cnv.drawColor(new BigInteger(currentColor, 16).intValue());
 
         TransitionDrawable transition = new TransitionDrawable(new Drawable[]{
