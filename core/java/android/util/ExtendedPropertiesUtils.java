@@ -43,7 +43,7 @@ import java.util.List;
 
 public class ExtendedPropertiesUtils {
  
-    private static final String TAG = "ExtendedPropertiesUtils";
+    private static final String TAG = "paranoid";
 
     /**
      * Public variables
