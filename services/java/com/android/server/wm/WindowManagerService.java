@@ -5831,6 +5831,8 @@ public class WindowManagerService extends IWindowManager.Stub
 
             // The screenshot API does not apply the current screen rotation.
             rot = getDefaultDisplayContentLocked().getDisplay().getRotation();
+            // Allow for abnormal hardware orientation
+            rot = (rot + (android.os.SystemProperties.getInt("ro.sf.hwrotation",0) / 90 )) % 4;
             int fw = frame.width();
             int fh = frame.height();
 
