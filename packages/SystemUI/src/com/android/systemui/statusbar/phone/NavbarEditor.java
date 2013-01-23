@@ -177,7 +177,7 @@ public class NavbarEditor implements OnTouchListener {
             int shortSizeDp = shortSize * DisplayMetrics.DENSITY_DEFAULT / outDisplayInfo.logicalDensityDpi;
             if (shortSizeDp < 600) {
                 // 0-599dp: "phone" UI with a separate status & navigation bar
-                mIsDevicePhone = true;
+                mIsDevicePhone = false;
             } else {
                 mIsDevicePhone = false;
             }
