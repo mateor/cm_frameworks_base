@@ -88,6 +88,8 @@ import android.content.pm.UserInfo;
 import android.content.res.CompatibilityInfo;
 import android.content.res.Configuration;
 import android.content.res.CustomTheme;
+import android.content.res.Resources;
+import android.content.res.XmlResourceParser
 import android.graphics.Bitmap;
 import android.net.Proxy;
 import android.net.ProxyProperties;
