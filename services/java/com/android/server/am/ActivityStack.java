@@ -1640,8 +1640,36 @@ final class ActivityStack {
 
         mPm.cpuBoost(1500000);
 
+        /**
+         * Author: Onskreen
+         * Date: 23/02/2011
+         *
+         * If the entire stack is paused, ignore requests to resume top activity. Centralizing
+         * this logic allows less changes throughout the class while enabling us to stop all actvities
+         */
+        if(mStackPaused) {
+            if (DEBUG_SWITCH) {
+                Log.v(TAG, "Stack: " + mStackName);
+                Log.v(TAG, "\tIgnoring request to resume top activity as stack is paused");
+              }
+            return false;
+        }
+
+
+        /**
+         * Author: Onskreen
+         * Date: 31/01/2011
+         *
+         * Determining task to be resumed based on panel. In cornerstone, the task to be
+         * resumed may or may not be the top activity and the activity to be paused may or may not
+         * be mResumedActivity. This is because tasks below the bottom one may be the one we
+         * are dealing with.
+         */
+        ActivityRecord next = null;
+        if(mMainStack || mCornerstonePanelStack || mCornerstoneStack) {
         // Find the first activity that is not finishing.
-        ActivityRecord next = topRunningActivityLocked(null);
+            next = topRunningActivityLocked(null);
+        }
 
         // Remember how we'll process this pause/resume situation, and ensure
         // that the state is reset however we wind up proceeding.
