@@ -12,6 +12,8 @@ import static com.android.server.wm.WindowManagerService.LayoutFields.SET_FORCE_
 import static com.android.server.wm.WindowManagerService.H.SET_DIM_PARAMETERS;
 
 import android.content.Context;
+import android.graphics.Rect;
+import android.os.IBinder;
 import android.os.SystemClock;
 import android.util.Log;
 import android.util.Slog;
@@ -21,6 +23,7 @@ import android.view.WindowManagerPolicy;
 import android.view.animation.Animation;
 
 import com.android.internal.policy.impl.PhoneWindowManager;
+import com.android.server.wm.WindowManagerService.WindowPanel;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -137,8 +140,19 @@ public class WindowAnimator {
             if (mWindowAnimationBackgroundSurface == null) {
                 mWindowAnimationBackgroundSurface = new DimSurface(mService.mFxSession);
             }
-            final int dw = mDw;
-            final int dh = mDh;
+            /**
+             * Author: Onskreen
+             * Date: 11/23/2012
+             *
+             * Sets the DimSurface width and height as per panel
+             * rect's width/height to restrict the DimSurface anim
+             * by not applying the screen width/height.
+             */
+            final int dw = target.mFrame.width();//mDw;
+            final int dh = target.mFrame.height();//mDh;
+			mWindowAnimationBackgroundSurface.mDimX = target.mFrame.left;
+			mWindowAnimationBackgroundSurface.mDimY = target.mFrame.top;
+
             mWindowAnimationBackgroundSurface.show(dw, dh,
                     target.mWinAnimator.mAnimLayer - WindowManagerService.LAYER_OFFSET_DIM,
                     mWindowAnimationBackgroundColor);
@@ -536,8 +550,42 @@ public class WindowAnimator {
         if (winAnimator.mSurfaceShown &&
                 (dimWinAnimator == null || !dimWinAnimator.mSurfaceShown
                 || dimWinAnimator.mAnimLayer < winAnimator.mAnimLayer)) {
+            /**
+             * Author: Onskreen
+             * Date: 21/12/2012
+             *
+             * Sets the dimming rect and position as per panel(main or
+             * either of cornerstone panels)'s current position in which
+             * this window is running.
+             */
+            if(winAnimator.mWin != null) {
+                if(winAnimator.mWin.mAppToken != null) {
+                    IBinder token = winAnimator.mWin.mAppToken.token;
+                    if(token != null) {
+						WindowPanel wp = mService.findWindowPanel(token);
+						if(wp != null) {
+							Rect dimRect = new Rect();
+							dimRect.set(wp.getPos());
+							mDimAnimator.mDimX = dimRect.left;
+							mDimAnimator.mDimY = dimRect.top;
+							mService.mH.sendMessage(mService.mH.obtainMessage(SET_DIM_PARAMETERS,
+								new DimAnimator.Parameters(winAnimator, dimRect.width(), dimRect.height(), target)));
+						} else {
+							mService.mH.sendMessage(mService.mH.obtainMessage(SET_DIM_PARAMETERS,
+									new DimAnimator.Parameters(winAnimator, width, height, target)));
+						}
+                    } else {
             mService.mH.sendMessage(mService.mH.obtainMessage(SET_DIM_PARAMETERS,
                     new DimAnimator.Parameters(winAnimator, width, height, target)));
+        }
+                } else {
+                    mService.mH.sendMessage(mService.mH.obtainMessage(SET_DIM_PARAMETERS,
+                            new DimAnimator.Parameters(winAnimator, width, height, target)));
+                }
+            } else {
+                mService.mH.sendMessage(mService.mH.obtainMessage(SET_DIM_PARAMETERS,
+                    new DimAnimator.Parameters(winAnimator, width, height, target)));
+            }
         }
     }
 

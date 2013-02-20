@@ -355,11 +355,18 @@ final class InputMonitor implements InputManagerService.Callbacks {
         if (newApp == null) {
             mService.mInputManager.setFocusedApplication(null);
         } else {
-            final InputApplicationHandle handle = newApp.mInputApplicationHandle;
+            /**
+             * Author: Onskreen
+             * Date: 10/12/2011
+             *
+             * commented out to support the user input for
+             * multiple visible apps running in Cornerstone.
+             */
+            /*final InputApplicationHandle handle = newApp.mInputApplicationHandle;
             handle.name = newApp.toString();
             handle.dispatchingTimeoutNanos = newApp.inputDispatchingTimeoutNanos;
 
-            mService.mInputManager.setFocusedApplication(handle);
+            mService.mInputManager.setFocusedApplication(handle);*/
         }
     }
     
