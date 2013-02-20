@@ -1096,6 +1096,148 @@ public class WindowManagerService extends IWindowManager.Stub
         Surface.closeTransaction();
 
         ThemeUtils.registerThemeChangeReceiver(mContext, mThemeChangeReceiver);
+
+        /**
+         * Author: Onskreen
+         * Date: 20/07/2011
+         *
+         * populate the layout rect constants for portrait and landscape modes.
+         */
+        XmlResourceParser xpp = null;
+        WindowManager wm = (WindowManager)context.getSystemService(Context.WINDOW_SERVICE);
+        Display display = wm.getDefaultDisplay();
+        final int dw = display.getWidth();
+        final int dh = display.getHeight();
+        try {
+            Resources res = context.getResources();
+            xpp = res.getXml(com.android.internal.R.xml.cornerstone);
+            xpp.next();
+            int eventType = xpp.getEventType();
+            String tag;
+            while (eventType != XmlPullParser.END_DOCUMENT) {
+                if(eventType == XmlPullParser.START_DOCUMENT) {
+                } else if(eventType == XmlPullParser.START_TAG) {
+                     tag = xpp.getName();
+                     if(tag.equals("layout")){
+                         int width = xpp.getAttributeIntValue(null, "width", 0);
+                         int height = xpp.getAttributeIntValue(null, "height", 0);
+                         if((dw == width) && (dh == height)) {
+                             xpp.next();
+                             tag = xpp.getName();
+                             if(tag.equals("landscape")) {
+                                 xpp.next();
+                                 tag = xpp.getName();
+                                 if(tag.equals("width")){
+                                    xpp.next();
+                                    mCornerstonePanelLandscapeWidth = Integer.parseInt(xpp.getText());
+                                    xpp.next();
+                                 }
+                                 xpp.next();
+                                 tag = xpp.getName();
+                                 if(tag.equals("height")){
+                                    xpp.next();
+                                    mCornerstonePanelLandscapeHeight = Integer.parseInt(xpp.getText());
+                                    xpp.next();
+                                 }
+                                 xpp.next();
+                                 tag = xpp.getName();
+                                 if(tag.equals("handler")){
+                                    xpp.next();
+                                    tag = xpp.getName();
+                                    if(tag.equals("width")){
+                                        xpp.next();
+                                        mCornerstoneHandlerLandscapeWidth = Integer.parseInt(xpp.getText());
+                                        xpp.next();
+                                    }
+                                    xpp.next();
+                                 }
+                                 xpp.next();
+                                 tag = xpp.getName();
+                                 if(tag.equals("appheader")){
+                                    xpp.next();
+                                    tag = xpp.getName();
+                                    if(tag.equals("height")){
+                                        xpp.next();
+                                        mCornerstoneAppHeaderLandscapeHeight = Integer.parseInt(xpp.getText());
+                                        xpp.next();
+                                    }
+                                    xpp.next();
+                                 }
+                                 xpp.next();
+                             }
+
+                             xpp.next();
+                             tag = xpp.getName();
+                             if(tag.equals("portrait")) {
+                                 xpp.next();
+                                 tag = xpp.getName();
+                                 if(tag.equals("width")){
+                                    xpp.next();
+                                    mCornerstonePanelPortraitWidth = Integer.parseInt(xpp.getText());
+                                    xpp.next();
+                                 }
+                                 xpp.next();
+                                 tag = xpp.getName();
+                                 if(tag.equals("height")){
+                                    xpp.next();
+                                    mCornerstonePanelPortraitHeight = Integer.parseInt(xpp.getText());
+                                    xpp.next();
+                                 }
+                                 xpp.next();
+                                 tag = xpp.getName();
+                                 if(tag.equals("handler")){
+                                    xpp.next();
+                                    tag = xpp.getName();
+                                    if(tag.equals("width")){
+                                        xpp.next();
+                                        mCornerstoneHandlerPortraitWidth = Integer.parseInt(xpp.getText());
+                                        xpp.next();
+                                    }
+                                    xpp.next();
+                                 }
+                                 xpp.next();
+                                 tag = xpp.getName();
+                                 if(tag.equals("appheader")){
+                                    xpp.next();
+                                    tag = xpp.getName();
+                                    if(tag.equals("height")){
+                                        xpp.next();
+                                        mCornerstoneAppHeaderPortraitHeight = Integer.parseInt(xpp.getText());
+                                        xpp.next();
+                                    }
+                                    xpp.next();
+                                 }
+                                 xpp.next();
+                                 tag = xpp.getName();
+                                 if(tag.equals("gutter")){
+                                    xpp.next();
+                                    mCornerstonePanelPortraitGutter = Integer.parseInt(xpp.getText());
+                                    xpp.next();
+                                 }
+                                 xpp.next();
+                             }
+                             break;
+                        }
+                     }
+                }
+                eventType = xpp.next();
+            }
+            xpp.close();
+         } catch (XmlPullParserException e) {
+              // TODO Auto-generated catch block
+              e.printStackTrace();
+              xpp.close();
+         } catch (IOException e) {
+             // TODO Auto-generated catch block
+             e.printStackTrace();
+             xpp.close();         }
+        /**
+         * Author: Onskreen
+         * Date: 20/01/2011
+         *
+         * Turn off the keyguard window which is active by default Release
+         */
+        mPolicy.enableKeyguard(false);
     }
 
     private Context getUiContext() {
