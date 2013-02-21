@@ -41,6 +41,14 @@ class DimAnimator {
 
     int mLastDimWidth, mLastDimHeight;
 
+    /**
+     * Author: Onskreen
+     * Date: 06/05/2011
+     *
+     * Setting DimAnimator position variables
+     */
+    int mDimX = 0, mDimY = 0;
+
     DimAnimator (SurfaceSession session, final int layerStack) {
         try {
             if (WindowManagerService.DEBUG_SURFACE_TRACE) {
