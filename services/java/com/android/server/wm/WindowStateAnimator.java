@@ -27,6 +27,8 @@ import android.view.animation.AnimationUtils;
 import android.view.animation.Transformation;
 
 import com.android.server.wm.WindowManagerService.H;
+import com.android.server.wm.WindowManagerService.WindowPanel;
+import com.android.server.wm.WindowManagerService.Cornerstone_State;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;

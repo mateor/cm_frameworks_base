@@ -74,6 +74,8 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.res.CompatibilityInfo;
 import android.content.res.Configuration;
+import android.content.res.Resources;
+import android.content.res.XmlResourceParser;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
@@ -202,9 +204,9 @@ public class WindowManagerService extends IWindowManager.Stub
     static final boolean DEBUG_BOOT = false;
     static final boolean DEBUG_LAYOUT_REPEATS = true;
     static final boolean DEBUG_SURFACE_TRACE = false;
-    static final boolean DEBUG_WINDOW_TRACE = false;
+    static final boolean DEBUG_WINDOW_TRACE = true;
     static final boolean SHOW_SURFACE_ALLOC = false;
-    static final boolean SHOW_TRANSACTIONS = false;
+    static final boolean SHOW_TRANSACTIONS = true;
     static final boolean SHOW_LIGHT_TRANSACTIONS = false || SHOW_TRANSACTIONS;
     static final boolean HIDE_STACK_CRAWLS = true;
     static final int LAYOUT_REPEAT_THRESHOLD = 4;
@@ -385,6 +387,18 @@ public class WindowManagerService extends IWindowManager.Stub
      * and now need to have the policy remove their windows.
      */
     final ArrayList<AppWindowToken> mFinishedStarting = new ArrayList<AppWindowToken>();
+
+    /**
+     * Author: Onskreen
+     * Date: 24/01/2011
+     *
+     * Rich tracking of Window Panels. Enables tracking of multiple groupIds
+     * contained in the same Window Panel as seen with Activities which are
+     * not marked as 'appFullScreen' that can be logically associated with
+     * the WindowPanel from which they were launched, but actually have a distinct
+     * groupId. Distinct groupIds should be associated with exactly one Window Panel.
+     */
+    final ArrayList<WindowPanel> mWindowPanels = new ArrayList<WindowPanel>();
 
     /**
      * Fake windows added to the window manager.  Note: ordered from top to
@@ -1445,6 +1459,86 @@ public class WindowManagerService extends IWindowManager.Stub
         }
     }
 
+    /**
+     * Author: Onskreen
+     * Date: 10/03/2011
+     *
+     * Utility method to dump quick status of app windows. For debugging.
+     * Ignores non-app windows.
+     */
+    public void logQuickWMSState() {
+        // dump the WMS data
+        for (int i = 0; i < mWindows.size(); i++) {
+            WindowState win = (WindowState) mWindows.get(i);
+            if (win.mAppToken != null) {
+                Log.v(TAG, i + ". " + win);
+
+                //Dump Window Panel Info
+                boolean wpFound = false;
+                for(int k=0; k<mWindowPanels.size(); k++) {
+                    WindowPanel wp = mWindowPanels.get(k);
+                    if(wp.contains(win.mAppToken.token)) {
+                        Log.i(TAG, "\tWindow Panel: " + wp);
+                        wpFound = true;
+                        break;
+                    }
+                }
+                if(!wpFound) {
+                    Log.i(TAG, "\tWindow Panel: None!");
+                }
+            }
+        }
+    }
+
+    /**
+     * Author: Onskreen
+     * Date: 27/01/2011
+     *
+     * Utility method to dump relevant window output to log. For debugging.
+     */
+    public void logWMSState(boolean logAppTokenDetail, boolean ignoreNonAppTokens) {
+        // dump the WMS data
+        for (int i = 0; i < mWindows.size(); i++) {
+            WindowState win = (WindowState) mWindows.get(i);
+            if (win.mAppToken == null && ignoreNonAppTokens) {
+                Log.v(TAG, i + ". " + win + " Ignored (non-apptoken)");
+            } else {
+                Log.v(TAG, i + ". " + win);
+
+                //Dump Window Panel Info
+                boolean wpFound = false;
+                for(int k=0; k<mWindowPanels.size(); k++) {
+                    WindowPanel wp = mWindowPanels.get(k);
+                    if(wp.contains(win.mAppToken.token)) {
+                        Log.i(TAG, "Window Panel: " + wp);
+                        wpFound = true;
+                        break;
+                    }
+                }
+                if(!wpFound) {
+                    Log.i(TAG, "Window Panel: None!");
+                }
+
+                // Dump the WindowState
+                StringWriter sw = new StringWriter();
+                PrintWriter pw = new PrintWriter(sw);
+                win.dump(pw, "Window " + i + ": ", true);
+                Log.i(TAG, sw.toString());
+                // Dump the App Token Info
+                if (logAppTokenDetail) {
+                    if (win.mAppToken == null) {
+                        Log.v(TAG, i + ". " + win + " Mode: Non-AppToken");
+                    } else {
+                        StringWriter sw2 = new StringWriter();
+                        PrintWriter pw2 = new PrintWriter(sw2);
+                        win.mAppToken.dump(pw2, "AppToken " + i + ": ");
+                        Log.i(TAG, sw2.toString());
+                    }
+                }
+            }
+        }
+    }
+
     void moveInputMethodDialogsLocked(int pos) {
         ArrayList<WindowState> dialogs = mInputMethodDialogs;
 
@@ -1925,7 +2019,7 @@ public class WindowManagerService extends IWindowManager.Stub
                 mWindowsChanged = true;
                 changed |= ADJUST_WALLPAPER_LAYERS_CHANGED;
             }
-        }
+        }*/
 
         if (targetChanged && DEBUG_WALLPAPER_LIGHT) {
             Slog.d(TAG, "New wallpaper: target=" + mWallpaperTarget
@@ -2903,6 +2997,20 @@ public class WindowManagerService extends IWindowManager.Stub
                         outConfig.setTo(mCurConfiguration);
                     }
                 }
+
+                    /** ORIGINAL IMPLEMENTATION**/
+                    /*if (win.mConfiguration != mCurConfiguration
+                            && (win.mConfiguration == null
+                                    || (diff=mCurConfiguration.diff(win.mConfiguration)) != 0)) {
+                        win.mConfiguration = mCurConfiguration;
+                        if (DEBUG_CONFIGURATION) {
+                            Slog.i(TAG, "Window " + win + " visible with new config: "
+                                    + win.mConfiguration + " / 0x"
+                                    + Integer.toHexString(diff));
+                        }
+                        outConfig.setTo(mCurConfiguration);
+                    }*/
+                }
                 if ((attrChanges&WindowManager.LayoutParams.FORMAT_CHANGED) != 0) {
                     // To change the format, we need to re-build the surface.
                     winAnimator.destroySurfaceLocked(false);
@@ -3553,7 +3661,66 @@ public class WindowManagerService extends IWindowManager.Stub
                 }
             } else {
                 int animAttr = 0;
-                switch (transit) {
+                /**
+                 * Onskree-Cornerstone
+                 * Date: 3.16.2011
+                 *
+                 * Determine which panel we are dealing with to appropriately set transition animation. In
+                 * appropriate cases the transition animations are set to their reverse so that
+                 * animations do not draw above the other panels on the screen.
+                 *
+                 * Wallpaper animations are not dealt with at this time since it isn't clear
+                 * they are causing any conflicts with Cornerstone.
+                 */
+                boolean isMainPanel = false;
+                boolean isCSPanel0 = false;
+                boolean isCSPanel1 = false;
+                if(wtoken == null) {
+					isMainPanel = true;
+                } else {
+                    WindowPanel wp = findWindowPanel(wtoken.groupId);
+                    if(wp==null) {
+						isMainPanel = true;		//When all else fails, just act as if main panel
+						if (DEBUG_CORNERSTONE) Log.v(TAG, "Failed to find WindowPanel containing token: " + wtoken);
+					} else if(wp.isMainPanel()) {
+						isMainPanel = true;
+					} else if(wp.isCornerstone()) {
+						isMainPanel = true; 	//This is actually a failure of some type
+					} else if(wp.isCornerstonePanel()) {
+						if(wp.mCornerstonePanelIndex == 0) {
+							isCSPanel0 = true;
+						} else if(wp.mCornerstonePanelIndex == 1) {
+							isCSPanel1 = true;
+						}
+					}
+                }
+
+                /**
+                 * Onskree-Cornerstone
+                 * Date: 4.18.2011
+                 *
+                 * Store orientation for use in configuring transitions.
+                 * Landscape Mode:
+                 * - Main panel transitions out to left
+                 * - CS Panels transitions out to right
+                 *
+                 * Portrait Mode:
+                 * - Main Panel and CS Panel 1 - transition out to right
+                 * - CS Panel 0 - transitions out to left
+                 *
+                 * Using mCurConfiguration. Calling mActivityManager.getConfiguratin() can
+                 * result in a synchronized block.
+                 */
+                boolean isPortraitMode = false;
+                boolean isLandscapeMode = false;
+                if(mCurConfiguration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+					isPortraitMode = true;
+                } else if(mCurConfiguration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+					isLandscapeMode = true;
+                }
+
+                /**Original switch() retained for reference**/
+                /*switch (transit) {
                     case WindowManagerPolicy.TRANSIT_ACTIVITY_OPEN:
                         animAttr = enter
                                 ? com.android.internal.R.styleable.WindowAnimation_activityOpenEnterAnimation
@@ -3583,6 +3750,238 @@ public class WindowManagerService extends IWindowManager.Stub
                         animAttr = enter
                                 ? com.android.internal.R.styleable.WindowAnimation_taskToBackEnterAnimation
                                 : com.android.internal.R.styleable.WindowAnimation_taskToBackExitAnimation;
+                        break;
+                    case WindowManagerPolicy.TRANSIT_WALLPAPER_OPEN:
+                        animAttr = enter
+                                ? com.android.internal.R.styleable.WindowAnimation_wallpaperOpenEnterAnimation
+                                : com.android.internal.R.styleable.WindowAnimation_wallpaperOpenExitAnimation;
+                        break;
+                    case WindowManagerPolicy.TRANSIT_WALLPAPER_CLOSE:
+                        animAttr = enter
+                                ? com.android.internal.R.styleable.WindowAnimation_wallpaperCloseEnterAnimation
+                                : com.android.internal.R.styleable.WindowAnimation_wallpaperCloseExitAnimation;
+                        break;
+                    case WindowManagerPolicy.TRANSIT_WALLPAPER_INTRA_OPEN:
+                        animAttr = enter
+                                ? com.android.internal.R.styleable.WindowAnimation_wallpaperIntraOpenEnterAnimation
+                                : com.android.internal.R.styleable.WindowAnimation_wallpaperIntraOpenExitAnimation;
+                        break;
+                    case WindowManagerPolicy.TRANSIT_WALLPAPER_INTRA_CLOSE:
+                        animAttr = enter
+                                ? com.android.internal.R.styleable.WindowAnimation_wallpaperIntraCloseEnterAnimation
+                                : com.android.internal.R.styleable.WindowAnimation_wallpaperIntraCloseExitAnimation;
+                        break;
+                }*/
+                switch (transit) {
+                    case WindowManagerPolicy.TRANSIT_ACTIVITY_OPEN:
+						if(isLandscapeMode) {
+							if(isMainPanel) {			//Main Panel Transitions
+								animAttr = enter
+								? com.android.internal.R.styleable.WindowAnimation_activityOpenEnterAnimation_reverse
+								: com.android.internal.R.styleable.WindowAnimation_activityOpenExitAnimation;
+							} else {					//Cs Panel Transitions
+								animAttr = enter
+								? com.android.internal.R.styleable.WindowAnimation_activityOpenEnterAnimation
+								: com.android.internal.R.styleable.WindowAnimation_activityOpenExitAnimation_reverse;
+							}
+						} else if(isPortraitMode) {
+							if(isMainPanel) {			//Main Panel Transitions
+                        animAttr = enter
+                                ? com.android.internal.R.styleable.WindowAnimation_activityOpenEnterAnimation
+                                : com.android.internal.R.styleable.WindowAnimation_activityOpenExitAnimation;
+							} else {					//CS Panel Transitions
+								if(isCSPanel0) {
+									animAttr = enter
+									? com.android.internal.R.styleable.WindowAnimation_activityOpenEnterAnimation_reverse
+									: com.android.internal.R.styleable.WindowAnimation_activityOpenExitAnimation;
+								} else if(isCSPanel1) {
+									animAttr = enter
+									? com.android.internal.R.styleable.WindowAnimation_activityOpenEnterAnimation
+									: com.android.internal.R.styleable.WindowAnimation_activityOpenExitAnimation_reverse;
+								}
+							}
+						}
+                        break;
+                    case WindowManagerPolicy.TRANSIT_ACTIVITY_CLOSE:
+						if(isLandscapeMode) {
+							if(isMainPanel) {			//Main Panel Transitions
+                        animAttr = enter
+                                ? com.android.internal.R.styleable.WindowAnimation_activityCloseEnterAnimation
+								: com.android.internal.R.styleable.WindowAnimation_activityCloseExitAnimation_reverse;
+							} else {					//Cs Panel Transitions
+								animAttr = enter
+								? com.android.internal.R.styleable.WindowAnimation_activityCloseEnterAnimation_reverse
+                                : com.android.internal.R.styleable.WindowAnimation_activityCloseExitAnimation;
+							}
+						} else if(isPortraitMode) {
+							if(isMainPanel) {			//Main Panel Transitions
+								animAttr = enter
+								? com.android.internal.R.styleable.WindowAnimation_activityCloseEnterAnimation
+								: com.android.internal.R.styleable.WindowAnimation_activityCloseExitAnimation;
+							} else {					//CS Panel Transitions
+								if(isCSPanel0) {
+									animAttr = enter
+									? com.android.internal.R.styleable.WindowAnimation_activityCloseEnterAnimation
+									: com.android.internal.R.styleable.WindowAnimation_activityCloseExitAnimation_reverse;
+								} else if(isCSPanel1) {
+									animAttr = enter
+									? com.android.internal.R.styleable.WindowAnimation_activityCloseEnterAnimation_reverse
+									: com.android.internal.R.styleable.WindowAnimation_activityCloseExitAnimation;
+								}
+							}
+						}
+                        break;
+                    case WindowManagerPolicy.TRANSIT_TASK_OPEN:
+						if(isLandscapeMode) {
+							if(isMainPanel) {			//Main Panel Transitions
+								animAttr = enter
+								? com.android.internal.R.styleable.WindowAnimation_taskOpenEnterAnimation_reverse
+								: com.android.internal.R.styleable.WindowAnimation_taskOpenExitAnimation;
+							} else {					//Cs Panel Transitions
+								animAttr = enter
+								? com.android.internal.R.styleable.WindowAnimation_taskOpenEnterAnimation
+								: com.android.internal.R.styleable.WindowAnimation_taskOpenExitAnimation_reverse;
+							}
+						} else if(isPortraitMode) {
+							if(isMainPanel) {			//Main Panel Transitions
+                        animAttr = enter
+                                ? com.android.internal.R.styleable.WindowAnimation_taskOpenEnterAnimation
+                                : com.android.internal.R.styleable.WindowAnimation_taskOpenExitAnimation;
+							} else {					//CS Panel Transitions
+								if(isCSPanel0) {
+									animAttr = enter
+									? com.android.internal.R.styleable.WindowAnimation_taskOpenEnterAnimation_reverse
+                                    /**
+                                     * Author: Onskreen
+                                     * Date: 11/01/2013
+                                     *
+                                     * For CS Panel 0 App in portrait mode, we are applying the Cornerstone
+                                     * specific transition settings than the default one. This ensures that
+                                     * open/exit transition is played correct on screen without interrupting
+                                     * other panel apps.
+                                     */
+									: com.android.internal.R.styleable.WindowAnimation_taskOpenExitAnimation_cornerstone;
+								} else if(isCSPanel1) {
+									animAttr = enter
+									? com.android.internal.R.styleable.WindowAnimation_taskOpenEnterAnimation
+									: com.android.internal.R.styleable.WindowAnimation_taskOpenExitAnimation_reverse;
+								}
+							}
+						}
+                        break;
+                    case WindowManagerPolicy.TRANSIT_TASK_CLOSE:
+						if(isLandscapeMode) {
+							if(isMainPanel) {			//Main Panel Transitions
+                        animAttr = enter
+                                ? com.android.internal.R.styleable.WindowAnimation_taskCloseEnterAnimation
+								: com.android.internal.R.styleable.WindowAnimation_taskCloseExitAnimation_reverse;
+							} else {					//Cs Panel Transitions
+								animAttr = enter
+								? com.android.internal.R.styleable.WindowAnimation_taskCloseEnterAnimation_reverse
+                                : com.android.internal.R.styleable.WindowAnimation_taskCloseExitAnimation;
+							}
+						} else if(isPortraitMode) {
+							if(isMainPanel) {			//Main Panel Transitions
+								animAttr = enter
+								? com.android.internal.R.styleable.WindowAnimation_taskCloseEnterAnimation
+								: com.android.internal.R.styleable.WindowAnimation_taskCloseExitAnimation;
+							} else {					//CS Panel Transitions
+								if(isCSPanel0) {
+									animAttr = enter
+                                    /**
+                                     * Author: Onskreen
+                                     * Date: 11/01/2013
+                                     *
+                                     * For CS Panel 0 App in portrait mode, we are applying the Cornerstone
+                                     * specific transition settings than the default one. This ensures that
+                                     * open/exit transition is played correct on screen without interrupting
+                                     * other panel apps.
+                                     */
+									? com.android.internal.R.styleable.WindowAnimation_taskCloseEnterAnimation_cornerstone
+									: com.android.internal.R.styleable.WindowAnimation_taskCloseExitAnimation_reverse;
+								} else if(isCSPanel1) {
+									animAttr = enter
+									? com.android.internal.R.styleable.WindowAnimation_taskCloseEnterAnimation_reverse
+									: com.android.internal.R.styleable.WindowAnimation_taskCloseExitAnimation;
+								}
+							}
+						}
+                        break;
+                    case WindowManagerPolicy.TRANSIT_TASK_TO_FRONT:
+						if(isLandscapeMode) {
+							if(isMainPanel) {			//Main Panel Transitions
+								animAttr = enter
+								? com.android.internal.R.styleable.WindowAnimation_taskToFrontEnterAnimation_reverse
+								: com.android.internal.R.styleable.WindowAnimation_taskToFrontExitAnimation;
+							} else {					//Cs Panel Transitions
+									animAttr = enter
+									? com.android.internal.R.styleable.WindowAnimation_taskToFrontEnterAnimation
+									: com.android.internal.R.styleable.WindowAnimation_taskToFrontExitAnimation_reverse;
+							}
+						} else if(isPortraitMode) {
+							if(isMainPanel) {			//Main Panel Transitions
+                        animAttr = enter
+                                ? com.android.internal.R.styleable.WindowAnimation_taskToFrontEnterAnimation
+                                : com.android.internal.R.styleable.WindowAnimation_taskToFrontExitAnimation;
+							} else {					//CS Panel Transitions
+								if(isCSPanel0) {
+									animAttr = enter
+									? com.android.internal.R.styleable.WindowAnimation_taskToFrontEnterAnimation_reverse
+                                    /**
+                                     * Author: Onskreen
+                                     * Date: 11/01/2013
+                                     *
+                                     * For CS Panel 0 App in portrait mode, we are applying the Cornerstone
+                                     * specific transition settings than the default one. This ensures that
+                                     * open/exit transition is played correct on screen without interrupting
+                                     * other panel apps.
+                                     */
+									: com.android.internal.R.styleable.WindowAnimation_taskToFrontExitAnimation_cornerstone;
+								} else if(isCSPanel1) {
+									animAttr = enter
+									? com.android.internal.R.styleable.WindowAnimation_taskToFrontEnterAnimation
+									: com.android.internal.R.styleable.WindowAnimation_taskToFrontExitAnimation_reverse;
+								}
+							}
+						}
+                        break;
+                    case WindowManagerPolicy.TRANSIT_TASK_TO_BACK:
+						if(isLandscapeMode) {
+							if(isMainPanel) {			//Main Panel Transitions
+								animAttr = enter
+								? com.android.internal.R.styleable.WindowAnimation_taskToBackEnterAnimation
+								: com.android.internal.R.styleable.WindowAnimation_taskToBackExitAnimation_reverse;
+							} else {					//Cs Panel Transitions
+								animAttr = enter
+								? com.android.internal.R.styleable.WindowAnimation_taskToBackEnterAnimation_reverse
+								: com.android.internal.R.styleable.WindowAnimation_taskToBackExitAnimation;
+							}
+						} else if(isPortraitMode) {
+							if(isMainPanel) {			//Main Panel Transitions
+                        animAttr = enter
+                                ? com.android.internal.R.styleable.WindowAnimation_taskToBackEnterAnimation
+                                : com.android.internal.R.styleable.WindowAnimation_taskToBackExitAnimation;
+							} else {					//CS Panel Transitions
+								if(isCSPanel0) {
+									animAttr = enter
+                                    /**
+                                     * Author: Onskreen
+                                     * Date: 11/01/2013
+                                     *
+                                     * For CS Panel 0 App in portrait mode, we are applying the Cornerstone
+                                     * specific transition settings than the default one. This ensures that
+                                     * open/exit transition is played correct on screen without interrupting
+                                     * other panel apps.
+                                     */
+									? com.android.internal.R.styleable.WindowAnimation_taskToBackEnterAnimation_cornerstone
+									: com.android.internal.R.styleable.WindowAnimation_taskToBackExitAnimation_reverse;
+								} else if(isCSPanel1) {
+									animAttr = enter
+									? com.android.internal.R.styleable.WindowAnimation_taskToBackEnterAnimation_reverse
+									: com.android.internal.R.styleable.WindowAnimation_taskToBackExitAnimation;
+								}
+							}
+						}
                         break;
                     case WindowManagerPolicy.TRANSIT_WALLPAPER_OPEN:
                         animAttr = enter
@@ -4073,6 +4472,19 @@ public class WindowManagerService extends IWindowManager.Stub
         synchronized(mWindowMap) {
             mCurConfiguration = new Configuration(config);
             mWaitingForConfig = false;
+            /**
+             * Author: Onskreen
+             * Date: 14/04/2011
+             *
+             * Before calling PLAPLSL method, we should update the mFrame rect based on
+             * the current orientation of the main panel activity.
+             *
+             */
+            //NOTE: To tunr off the orientation support comment this code.
+            for(int k=0; k < mWindowPanels.size(); k++) {
+                WindowPanel wp = mWindowPanels.get(k);
+                wp.updateConfiguration(false);
+            }
             performLayoutAndPlaceSurfacesLocked();
         }
     }
@@ -4626,6 +5038,26 @@ public class WindowManagerService extends IWindowManager.Stub
                 return;
             }
 
+            /**
+             * Author: Onskreen
+             * Date: 31/05/2011
+             *
+             * Resolves the focus issue when user presses the HOME key or long presses the HOME key.
+             */
+            if(visible){
+                WindowPanel wp = findWindowPanel(token);
+                if(wp != null){
+                    try {
+                        WindowState win = wtoken.findMainWindow();
+                        if(win != null){
+                            mActivityManager.broadcastCornerstonePanelFocusChanged(win.mAttrs.packageName, visible, wp.mCornerstonePanelIndex);
+                        }
+                    } catch (android.os.RemoteException e){
+                        Log.i(TAG, "Remote Exception while notifying to CSPanel: " + e);
+                    }
+                }
+            }
+
             if (DEBUG_APP_TRANSITIONS || DEBUG_ORIENTATION) {
                 RuntimeException e = null;
                 if (!HIDE_STACK_CRAWLS) {
@@ -4852,6 +5284,55 @@ public class WindowManagerService extends IWindowManager.Stub
                         "removeAppToken: " + wtoken);
                 mAppTokens.remove(wtoken);
                 mAnimatingAppTokens.remove(wtoken);
+
+                /**
+                 * Author: Onskreen
+                 * Date: 24/01/2011
+                 *
+                 * When the AppWindowToken is removed, its WindowPanel
+                 * position must be wiped also if there are no remaining
+                 * AppWindowTokens included in that WP. At this point the
+                 * Windows associated with this AppWindowTOken should
+                 * have already been removed.
+                 */
+                boolean doTokensWithIdStillExist = false;
+                if (DEBUG_WP_GROUPING)
+                    Log.v(TAG, "Evaluating if Token with Group ID:" + wtoken.groupId
+                            + " has remaining");
+                for (int i = 0; i < mAppTokens.size(); i++) {
+                    AppWindowToken currAppWindowToken = mAppTokens.get(i);
+                    if (wtoken != currAppWindowToken
+                            && wtoken.groupId == currAppWindowToken.groupId) {
+                        if (DEBUG_WP_GROUPING)
+                            Log.v(TAG, "Other Token with Group ID:" + wtoken.groupId + " found");
+                        doTokensWithIdStillExist = true;
+                        break;
+                    }
+                }
+                // No other tokens with this groupid exist, remove it from it's
+                // window panel
+                if (!doTokensWithIdStillExist) {
+                    for (int i = 0; i < mWindowPanels.size(); i++) {
+                        WindowPanel wp = mWindowPanels.get(i);
+                        // Found the Window Panel containing this token's group
+                        if (wp.contains(wtoken.groupId)) {
+                            wp.removeGroupId(wtoken.groupId);
+                            if (wp.isWindowPanelEmpty()) {
+                                if (DEBUG_WP_GROUPING)
+                                    Log.v(TAG, "WP: " + wp + " now empty, removing...");
+                                mWindowPanels.remove(wp);
+                                if (DEBUG_WP_GROUPING) {
+                                    Log.v(TAG, "Active Window Panels:");
+                                    for (int i2 = 0; i2 < mWindowPanels.size(); i2++) {
+                                        WindowPanel wp2 = mWindowPanels.get(i2);
+                                        Log.v(TAG, wp2.toString());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 wtoken.removed = true;
                 if (wtoken.startingData != null) {
                     startingToken = wtoken;
@@ -5976,7 +6457,59 @@ public class WindowManagerService extends IWindowManager.Stub
         canvas.setBitmap(null);
 
         rawss.recycle();
+        //return bm;
+
+        /**
+         * Author: Onskreen
+         * Date: 24/12/2011
+         *
+         * Crop and rescale the bmp to capture just the application panel
+         * that is being targeted. Perform operation separately to make
+         * easier to port later.
+         *
+         * Issue with this is that cropping and resizing the bmp causes a grainier
+         * screenshot. To truly solve this problem, it would be better to
+         * create/edit Surface.screenshot to accept additional parameters of the
+         * rect to take screenshot of instead of assuming the entire display.
+         *
+         * This cropping and resizing logic fails in some situations for the CSPanel
+         * and CS Apps. Not dealing with those cases right now since the screenshots
+         * taken of main panel apps are the only ones actually used.
+         *
+         */
+        WindowPanel wp = findWindowPanel(appToken);
+        if(wp.isMainPanel()) {
+            float targetWidthScale = width / (float) frame.width();
+            float targetHeightScale = height / (float) frame.height();
+
+            Rect targetRect = wp.getPos();
+            int top = (int)(targetRect.top*targetHeightScale);
+            int left = (int)(targetRect.left*targetWidthScale);
+            int bottom = (int)(targetRect.bottom*targetHeightScale);
+            int right = (int)(targetRect.right*targetWidthScale);
+            int scaledWidth = right-left;
+            int scaledHeight = bottom-top;
+            int bmWidth = bm.getWidth();
+            int bmHeight = bm.getHeight();
+            try {
+                Bitmap croppedBm = Bitmap.createBitmap(bm,
+                        left,
+                        top,
+                        scaledWidth,
+                        scaledHeight);
+                return croppedBm;
+            } catch(IllegalArgumentException e) {
+                if(DEBUG_SCREENSHOT) {
+                    Slog.e(TAG, "AppToken: " + appToken + " failed to crop");
+                    Slog.e(TAG, e.toString());
+                    Slog.e(TAG, "Source Bitmap - Height: " + bmHeight + " Width: " + bmWidth);
+                    Slog.e(TAG, "Cropped Bitmap - x: " + left + " y: " + top + " width: " + scaledWidth + " height: " + scaledHeight);
+                }
+                return bm;
+            }
+        } else {
         return bm;
+    }
     }
 
     /**
@@ -6134,6 +6667,27 @@ public class WindowManagerService extends IWindowManager.Stub
                 "Rotation changed to " + rotation + (altOrientation ? " (alt)" : "")
                 + " from " + mRotation + (mAltOrientation ? " (alt)" : "")
                 + ", forceApp=" + mForcedAppOrientation);
+        }
+
+        /**
+         * Author: Onskreen
+         * Date: 26/12/2011
+         *
+         * Before rotating, if a Cornerstone Panel app has the focus, transfer the focus to the
+         * Main Panel. This accomplishes transferring the focus as well as dismissing any system
+         * dialogs or keyboard that might be visible.
+         *
+         */
+        WindowState focusedWin = getFocusedWindow();
+        if(focusedWin != null && focusedWin.isInCornerstonePanelWindowPanel(focusedWin.getToken())) {
+            for(WindowPanel wp: mWindowPanels) {
+                if(wp.isMainPanel()) {
+                    if (DEBUG_ORIENTATION || DEBUG_CORNERSTONE) {
+                        Slog.v(TAG,"Panel App transferring focus to main panel before rotation. ");
+                    }
+                    handleFocusChange(wp.getVisibleToken().token);
+                }
+            }
         }
 
         mRotation = rotation;
@@ -6771,6 +7325,1381 @@ public class WindowManagerService extends IWindowManager.Stub
         }
     }
 
+    /**
+     * Author: Onskreen
+     * Date: 01/01/2012
+     *
+     * Marshall to the appropriate spot to manage change in Cornerstone state.
+     */
+    public void setCornerstoneState(Cornerstone_State csState) {
+        if(DEBUG_CORNERSTONE) {
+            Log.v(TAG, "Current Cornerstone State: " + mCornerstoneState);
+            Log.v(TAG, "Requested Cornerstone State: " + csState);
+        }
+
+        //Launch Cornerstone
+		if(mCornerstoneState == Cornerstone_State.TERMINATED &&				//Launch Cornerstone
+				(csState == Cornerstone_State.RUNNING_CLOSED ||
+						csState == Cornerstone_State.RUNNING_OPEN)) {
+			if(DEBUG_CORNERSTONE) {
+				Log.v(TAG, "Action: Launching Cornerstone");
+			}
+			handleCornerstoneLaunch(csState);
+		} else if((mCornerstoneState == Cornerstone_State.RUNNING_OPEN ||	//Exit Cornerstone
+				mCornerstoneState == Cornerstone_State.RUNNING_CLOSED) &&
+				csState == Cornerstone_State.TERMINATED) {
+			if(DEBUG_CORNERSTONE) {
+				Log.v(TAG, "Action: Exiting Cornerstone");
+			}
+			handleCornerstoneExit();
+		} else if(csState != mCornerstoneState &&							//Cornerstone State Change
+				((csState == Cornerstone_State.RUNNING_CLOSED ||
+						csState == Cornerstone_State.RUNNING_OPEN) &&
+						(mCornerstoneState == Cornerstone_State.RUNNING_CLOSED ||
+								mCornerstoneState == Cornerstone_State.RUNNING_OPEN))) {
+			if(DEBUG_CORNERSTONE) {
+				Log.v(TAG, "Action: Cornerstone Open/Close");
+			}
+			handleCornerstoneOpenClose(csState);
+		} else {
+			if(DEBUG_CORNERSTONE) {
+				Log.v(TAG, "Action: None. No state change to manage.");
+			}
+		}
+    }
+
+    /**
+     * Author: Onskreen
+     * Date: 01/01/2012
+     *
+     * Terminate the Cornerstone if currently running.
+     */
+    private void handleCornerstoneExit() {
+        //Safety Checks - Not already terminated
+        if(mCornerstoneState == Cornerstone_State.TERMINATED) {
+            if(DEBUG_CORNERSTONE) Slog.v(TAG, "Cornerstone already terminated.");
+            return;
+        }
+        if(DEBUG_CORNERSTONE) Slog.v(TAG, "Exiting Cornerstone");
+
+        long origId = Binder.clearCallingIdentity();
+        mCornerstoneStateChangeAnimating = false;
+        mCornerstoneState = Cornerstone_State.TERMINATED;
+
+        /**
+         * Author: Onskreen
+         * Date: 21/11/2011
+         *
+         * The method is triggered by the AMS whenever user kills
+         * the Cornesrtone and relaunches again. Earlier, we were only setting the main
+         * panel mFrame i.e layout rect in those set of sequences and that created so many
+         * layout issues like CS Panel apps rendering full screen instead of rendeing in its
+         * panel area. To resolve this issue, we should also set the mFrame rect for all other
+         * apps when user restarts the Cornerstone after killing it. The below solution
+         * resolved all those layout issues caused by the ealrier implementation.
+         */
+        synchronized(mWindowMap) {
+            for(WindowPanel wp: mWindowPanels) {
+                wp.setFrame(computeWindowPanelRect(wp, mCurConfiguration.orientation, mCornerstoneState));
+            }
+            mLayoutNeeded=true;
+            performLayoutAndPlaceSurfacesLocked();
+        }
+
+        /**
+         * Author: Onskreen
+         * Date: 26/12/2011
+         *
+         * Only the main panel config is actually changing. Cornerstone is gone and the main panel
+         * remains.
+         */
+        for(WindowPanel wp: mWindowPanels) {
+            if(wp.isMainPanel()) {
+                wp.updateConfiguration(false);
+                break;
+            }
+        }
+        Binder.restoreCallingIdentity(origId);
+    }
+
+    /**
+     * Author: Onskreen
+     * Date: 01/01/2012
+     *
+     * Launch the Cornerstone if currently terminated.
+     */
+    private void handleCornerstoneLaunch(Cornerstone_State csState) {
+       //Safety Checks - Not already launched
+       if(mCornerstoneState != Cornerstone_State.TERMINATED) {
+            if(DEBUG_CORNERSTONE) {
+                 Slog.v(TAG, "Cornerstone already launched, handle open/close if required.");
+            }
+            handleCornerstoneOpenClose(csState);
+            return;
+       }
+       if(DEBUG_CORNERSTONE) {
+             Slog.v(TAG, "Exiting Cornerstone");
+       }
+       long origId = Binder.clearCallingIdentity();
+       mCornerstoneStateChangeAnimating = false;
+       mCornerstoneState = csState;
+
+       /**
+        * Author: Onskreen
+        * Date: 21/11/2011
+        *
+        * The setCornerstoneLayout method is triggered by the AMS whenever user kills
+        * the Cornesrtone and relaunches again.
+        */
+       synchronized(mWindowMap) {
+           for(WindowPanel wp: mWindowPanels) {
+               wp.setFrame(computeWindowPanelRect(wp, mCurConfiguration.orientation, mCornerstoneState));
+           }
+           mLayoutNeeded=true;
+           performLayoutAndPlaceSurfacesLocked();
+       }
+
+       /**
+        * Author: Onskreen
+        * Date: 26/12/2011
+        *
+        * Only the main panel config is actually changing. Cornerstone is gone and the main panel
+        * remains.
+        */
+       for(WindowPanel wp: mWindowPanels) {
+          if(wp.isMainPanel()) {
+             wp.updateConfiguration(false);
+             break;
+          }
+       }
+       Binder.restoreCallingIdentity(origId);
+    }
+
+    /**
+     * Author: Onskreen
+     * Date: 14/02/2012
+     *
+     * Manage cornerstone panel dialog window.
+     * - Hides the dialog window when cornerstone is closed.
+     * - Shows the dialog window when cornerstone is opened.
+     *
+     */
+    private void handleCSPanelDialogWindows(Cornerstone_State csState) {
+		for(int i=mWindowPanels.size()-1; i>=0; i--) {
+			WindowPanel wp = mWindowPanels.get(i);
+			if(wp.isCornerstonePanel()) {
+				AppWindowToken csPanelToken = wp.getVisibleToken();
+				int N = csPanelToken.allAppWindows.size();
+					for (int k = 0; k < N; k++) {
+						WindowState win = csPanelToken.allAppWindows.get(k);
+						WindowManager.LayoutParams attrs = win.mAttrs;
+						if(attrs.type == WindowManager.LayoutParams.TYPE_APPLICATION) {
+						try {
+							if(csState == Cornerstone_State.RUNNING_CLOSED) {
+								win.mWinAnimator.mSurface.hide();
+							} else if(csState == Cornerstone_State.RUNNING_OPEN) {
+								win.mWinAnimator.mSurface.show();
+								handleFocusChange(win.getToken());
+							}
+						} catch (RuntimeException e) {
+							Slog.w(WindowManagerService.TAG, "Error hiding surface in " + this, e);
+						}
+					}
+				}
+			}
+		}
+	}
+
+    /**
+     * Author: Onskreen
+     * Date: 25/02/2011
+     *
+     * Manage cornerstone state: open or closed. The implementation is functional but not optimal.
+     *
+     * There is complexity in getting the framework to display to the screen in one update the resize
+     * of the main panel and the animation (or move) of the cornerstone to the open/closed state.
+     * Changes are done by starting a Surface.openTransaction(), making the changes desired and then
+     * calling Surface.closeTransaction() at which the changes are displayed on screen. The issue
+     * is that the resize of a ViewRoot (which is what is happening on the main panel) does not actually get
+     * displayed to the screen in the Surface.closeTransation() within WMS.PLAPSL(). The actual
+     * change seems to get output to the screen in the View classes somewhere (not clear where). So
+     * the animation or move changes of the cornerstone is displayed to the screen and the View resize
+     * is actually happening shortly thereafter.
+     *
+     * The ideal scenario is that the main panel is resized in coordination with ever screen update
+     * of the cornerstone in its state change. However, it is actually being called before or after this.
+     *
+    */
+    private void handleCornerstoneOpenClose(Cornerstone_State csState) {
+		if(DEBUG_CORNERSTONE) {
+			Slog.v(TAG, "Start: Cornerstone State Change to: " + csState);
+		}
+
+		//Safety Checks - State is different
+		if(mCornerstoneState == csState) {
+            if(DEBUG_CORNERSTONE) Slog.v(TAG, "Cornerstone already in requested state.");
+            return;
+		}
+
+		WindowPanel cornerstoneWP = null;
+        ArrayList<WindowPanel> csPanelWPs = new ArrayList<WindowPanel>();
+        WindowPanel mainPanelWP = null;
+
+        //Locate all the relevant WP
+        for(int i=0; i<mWindowPanels.size(); i++) {
+            WindowPanel wp = mWindowPanels.get(i);
+            if(wp.isMainPanel()) {
+                mainPanelWP = wp;
+            } else if(wp.isCornerstone()) {
+                cornerstoneWP = wp;
+            } else if(wp.isCornerstonePanel()) {
+                csPanelWPs.add(wp);
+            }
+        }
+
+        WindowManager wm = (WindowManager) mContext.getSystemService(Context.WINDOW_SERVICE);
+        Display display = wm.getDefaultDisplay();
+
+        //Start X Pos of the cornerstone and cornerstone panels
+        int csStartPos = 0; //cornerstoneWP.getPos().left;
+        int csEndPos = 0;
+        //Controls the amount of time the cornerstone state transition animation takes
+        long animDuration;
+
+        if(csState == Cornerstone_State.RUNNING_CLOSED) {             		//Closing
+            //X Pos to stop cornerstone so handler tab is still visible on right edge.
+            /**
+             * Author: Onskreen
+             * Date: 14/04/2011
+             *
+             * Calculates the start and end positions based on the current orientation
+             * while closing the cs panel.
+             */
+            if(mCurConfiguration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                csEndPos  = display.getHeight() - mCornerstoneHandlerPortraitWidth;
+                csStartPos = cornerstoneWP.getPos().top;
+            } else if(mCurConfiguration.orientation == Configuration.ORIENTATION_LANDSCAPE){
+                csEndPos  = display.getWidth() - mCornerstoneHandlerLandscapeWidth;
+                csStartPos = cornerstoneWP.getPos().left;
+            }
+            animDuration = DEFAULT_FADE_IN_OUT_DURATION;                    //400ms
+        } else {                											//Opening
+            //X Pos to stop cornerstone to be open fully
+            /**
+             * Author: Onskreen
+             * Date: 14/04/2011
+             *
+             * Calculates the start and end positions based on the current orientation
+             * while opening the cs panel.
+             */
+            if(mCurConfiguration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                csEndPos  = display.getHeight() - (mCornerstoneHandlerPortraitWidth + mCornerstonePanelPortraitHeight + mCornerstoneAppHeaderPortraitHeight);
+                csStartPos = cornerstoneWP.getPos().top;
+            } else if(mCurConfiguration.orientation == Configuration.ORIENTATION_LANDSCAPE){
+                csEndPos  = display.getWidth() - (mCornerstoneHandlerLandscapeWidth + mCornerstonePanelLandscapeWidth);
+                csStartPos = cornerstoneWP.getPos().left;
+            }
+            //Opening duration is longer because this amount of time seems to reduce the chances that
+            //the main panel is rendered on top of the cornerstone before it is resized.
+            animDuration = 900;
+        }
+
+        //Amount to open or close the cornerstone
+        int currLayoutDelta = csEndPos-csStartPos;
+        //Update flag so that animation process knows that the views being animated are
+        //intended to remain in the position of their last animation.
+        mCornerstoneStateChangeAnimating = true;
+        mCornerstoneStateChangeProcessing = true;
+        synchronized(mWindowMap) {
+            //Required to safley call PLAPSL()
+            long origId = Binder.clearCallingIdentity();
+
+            if(csState == Cornerstone_State.RUNNING_CLOSED) { 											//Close Cornerstone
+				/**
+                 * Author: Onskreen
+                 * Date: 14/02/2012
+                 *
+                 * Close any dialog window visible on screen before
+                 * closing animation played on cornerstone and its
+                 * panel applications.
+                 */
+				handleCSPanelDialogWindows(csState);
+
+                //Cornerstone Animation
+                AppWindowToken csToken = cornerstoneWP.getVisibleToken();
+                csToken.willBeHidden = false;
+                csToken.mAppAnimator.animation = null;
+                Animation a = null;
+                /**
+                 * Author: Onskreen
+                 * Date: 14/04/2011
+                 *
+                 * When Cornerstone is in portrait mode, start animation towards 'Y' axis (height)
+                 * and when it's in landscape mode start animation towards 'X' axis (width)
+                 */
+                if(mCurConfiguration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                    a = new TranslateAnimation(0, 0, 0, currLayoutDelta);
+                } else if(mCurConfiguration.orientation == Configuration.ORIENTATION_LANDSCAPE){
+                    a = new TranslateAnimation(0, currLayoutDelta, 0, 0);
+                }
+                a.setDuration(animDuration);
+                a.setZAdjustment(Animation.ZORDER_TOP);
+                csToken.mAppAnimator.setAnimation(a, false);
+
+                //Cornerstone Panel Animations
+                for(int i=0; i<csPanelWPs.size(); i++) {
+                    AppWindowToken csPanelToken = csPanelWPs.get(i).getVisibleToken();
+                    csPanelToken.willBeHidden = false;
+                    csPanelToken.mAppAnimator.animation = null;
+                    Animation csPanelAnim = null;
+                    /**
+                     * Author: Onskreen
+                     * Date: 14/04/2011
+                     *
+                     * When Cornerstone is in portrait mode, start animation towards 'Y' axis (height)
+                     * and when it's in landscape mode start animation towards 'X' axis (width)
+                     */
+                    if(mCurConfiguration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                        csPanelAnim = new TranslateAnimation(0, 0, 0, currLayoutDelta);
+                    } else if(mCurConfiguration.orientation == Configuration.ORIENTATION_LANDSCAPE){
+                        csPanelAnim = new TranslateAnimation(0, currLayoutDelta, 0, 0);
+                    }
+                    csPanelAnim.setDuration(animDuration);
+                    csPanelAnim.setZAdjustment(Animation.ZORDER_TOP);
+                    csPanelToken.mAppAnimator.setAnimation(csPanelAnim, false);
+                }
+
+                /**It's not clear if making this resize call is better than just calling PLAPSL().
+                 * Hard to tell but seems to have the screen updated slightly faster so keeping it
+                 * this way.
+                 */
+                    //Resize main panel to take up left over space
+                /**
+                 * Author: Onskreen
+                 * Date: 14/04/2011
+                 *
+                 * When Cornerstone is in portrait mode, resize  the main panel towards 'Y' axis (height)
+                 * and when it's in landscape mode, resize the main panel towards 'X' axis (width)
+                 */
+                if(mCurConfiguration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                    mainPanelWP.resize(0, currLayoutDelta);
+                } else if(mCurConfiguration.orientation == Configuration.ORIENTATION_LANDSCAPE){
+                    mainPanelWP.resize(currLayoutDelta, 0);
+                }
+                WindowState mainWin = mainPanelWP.getVisibleToken().findMainWindow();
+                /**
+                 * Author: Onskreen
+                 * Date: 07/01/2012
+                 *
+                 * Window is manually resized instead of allowing configuration logic to handle it because
+                 * the Main Panel is no longer being reconfigurated on a CS State change from open to close or
+                 * vice versa
+                 */
+                try {
+                    mainWin.mClient.resized(mainPanelWP.getPos().width(), mainPanelWP.getPos().height(),
+                    mainWin.mContentInsets, mainWin.mVisibleInsets,
+                    mainWin.mWinAnimator.mDrawState == WindowStateAnimator.DRAW_PENDING, mainWin.mConfiguration);
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+               }
+            } else if(csState == Cornerstone_State.RUNNING_OPEN) {    									//Opening Cornerstone
+                /**
+                 * Author: Onskreen
+                 * Date: 14/04/2011
+                 *
+                 * When Cornerstone is in portrait mode, resize  the main panel towards 'Y' axis (height)
+                 * and when it's in landscape mode, resize the main panel towards 'X' axis (width)
+                 */
+                if(mCurConfiguration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                    mainPanelWP.resize(0, currLayoutDelta);
+                } else if(mCurConfiguration.orientation == Configuration.ORIENTATION_LANDSCAPE){
+                    mainPanelWP.resize(currLayoutDelta, 0);
+                }
+                WindowState mainWin = mainPanelWP.getVisibleToken().findMainWindow();
+                /**
+                 * Author: Onskreen
+                 * Date: 07/01/2012
+                 *
+                 * Window is manually resized instead of allowing configuration logic to handle it because
+                 * the Main Panel is no longer being reconfigurated on a CS State change from open to close or
+                 * vice versa
+                 */
+                try {
+                        mCornerstoneStateChangeAnimating = true;
+                        mainWin.mClient.resized(mainPanelWP.getPos().width(), mainPanelWP.getPos().height(),
+                        mainWin.mContentInsets, mainWin.mVisibleInsets, mainWin.mWinAnimator.mDrawState == WindowStateAnimator.DRAW_PENDING, mainWin.mConfiguration);
+                        /**
+                         * This call to PLAPSL() is functinally useless. The call to resized() above triggers a call
+                         * to PLAPSL(). It is included here as a delay to get the main panel resize to get displayed
+                         * to the screen asap, hopefully so that it does not display on top of the cornerstone at
+                         * any time.
+                         */
+                        mLayoutNeeded=true;
+                        performLayoutAndPlaceSurfacesLocked();
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
+
+                //Cornerstone Animation
+                /**
+                 * When opening the cornerstone the setZAdjustment() is important to ensure that the
+                 * cornerstone is animated on top of the main panel. We shouldn't see the main
+                 * panel window rendered on top, although still happening.
+                 */
+                AppWindowToken csToken = cornerstoneWP.getVisibleToken();
+                csToken.willBeHidden = false;
+                csToken.mAppAnimator.animation = null;
+                Animation a = null;
+                /**
+                 * Author: Onskreen
+                 * Date: 14/04/2011
+                 *
+                 * When Cornerstone is in portrait mode, start animation towards 'Y' axis (height)
+                 * and when it's in landscape mode, start animation towards 'X' axis (width)
+                 */
+                if(mCurConfiguration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                    a = new TranslateAnimation(0, 0, 0, currLayoutDelta);
+                } else if(mCurConfiguration.orientation == Configuration.ORIENTATION_LANDSCAPE){
+                    a = new TranslateAnimation(0, currLayoutDelta, 0, 0);
+                }
+                a.setDuration(animDuration);
+                a.setZAdjustment(Animation.ZORDER_TOP);
+                csToken.mAppAnimator.setAnimation(a, false);
+
+                    //Cornerstone Panel Animations
+                for(int i=0; i<csPanelWPs.size(); i++) {
+                    AppWindowToken csPanelToken = csPanelWPs.get(i).getVisibleToken();
+                    csPanelToken.willBeHidden = false;
+                    csPanelToken.mAppAnimator.animation = null;
+                    Animation csPanelAnim = null;
+                    /**
+                     * Author: Onskreen
+                     * Date: 14/04/2011
+                     *
+                     * When Cornerstone is in portrait mode, start animation towards 'Y' axis (height)
+                     * and when it's in landscape mode, start animation towards 'X' axis (width)
+                     */
+                    if(mCurConfiguration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                        csPanelAnim = new TranslateAnimation(0, 0, 0, currLayoutDelta);
+                    } else if(mCurConfiguration.orientation == Configuration.ORIENTATION_LANDSCAPE){
+                        csPanelAnim = new TranslateAnimation(0, currLayoutDelta, 0, 0);
+                    }
+                    csPanelAnim.setDuration(animDuration);
+                    csPanelAnim.setZAdjustment(Animation.ZORDER_TOP);
+                    csPanelToken.mAppAnimator.setAnimation(csPanelAnim, false);
+                }
+
+                //Set layout flag so that frames are set appropriately after animations complete
+                mCornerstoneStateChangeAnimating = true;
+                performLayoutAndPlaceSurfacesLocked();
+
+				/**
+                 * Author: Onskreen
+                 * Date: 14/02/2012
+                 *
+                 * Show any hidden dialog window(s) on screen after
+                 * opening animation played on cornerstone and its
+                 * panel applications.
+                 */
+				mH.removeMessages(H.SHOW_HIDDEN_DIALOG_WINDOWS);
+				mH.sendMessageDelayed(mH.obtainMessage(H.SHOW_HIDDEN_DIALOG_WINDOWS),
+						animDuration + 20);
+
+            }
+            Binder.restoreCallingIdentity(origId);
+        }
+
+        //Update Cornerstone State
+        mCornerstoneState = csState;
+        mCornerstoneStateChangeProcessing = false;
+
+        /**
+         * Author: Onskreen
+         * Date: 26/12/2011
+         *
+         * Only the main panel config is actually changing. The CS Panels didn't have a config change,
+         * they are just now resumed and visible or paused and not visible.
+         */
+		mainPanelWP.updateConfiguration(false);
+
+		if(DEBUG_CORNERSTONE) {
+			Slog.v(TAG, "End: Cornerstone State Change to: " + csState);
+			Slog.v(TAG, "mCornerstoneStateChangeProcessing: " + mCornerstoneStateChangeProcessing);
+			Slog.v(TAG, "mCornerstoneStateChangeAnimating: " + mCornerstoneStateChangeAnimating);
+		}
+
+        /**
+         * Onskreen-Cornerstone
+         */
+        if (DEBUG_WP_POSITIONS) {
+            Log.v(TAG, "Cornerstone State: " + mCornerstoneState);
+            Log.v(TAG, "\tMain Panel" + mainPanelWP.mWPPos);
+            Log.v(TAG, "\tCornerstone" + cornerstoneWP.mWPPos);
+        }
+
+        /**
+         * Author: Onskreen
+         * Date: 04/01/2013
+         *
+         * Modify DimAnimator's Parameters object (width and height)
+         * as per Cornerstone's current state (opened or closed).
+         */
+		WindowState mainWin = mainPanelWP.getVisibleToken().findMainWindow();
+		final WindowStateAnimator winAnimator = mainWin.mWinAnimator;
+		mH.sendMessage(mH.obtainMessage(mH.SET_DIM_PARAMETERS,
+			new DimAnimator.Parameters(winAnimator,
+					mainPanelWP.getPos().width(),
+					mainPanelWP.getPos().height(),
+					mainWin.mExiting ? 0 : mainWin.mAttrs.dimAmount)));
+    }
+
+    /**
+     * Author: Onskreen
+     * Date: 11/03/2011
+     *
+     * Convienence method for debugging.
+     */
+    public AppWindowToken getFocusedApp() {
+        return mFocusedApp;
+    }
+
+    /**
+     * Author: Onskreen
+     * Date: 30/11/2011
+     *
+     * Utility method for getting Window Panel list for classes
+     * such as WindowState, AppWindowToken, Session etc.
+     */
+    public ArrayList<WindowPanel> getWindowPanels() {
+        return mWindowPanels;
+    }
+
+    public void handleFocusChangeLocked(IBinder token) {
+		WindowPanel wp = findWindowPanel(token);
+		if(DEBUG_REORDER) {
+			Log.v(TAG, "Moving token: " + token + " (and all tokens in same window panel) to top of z-order");
+			Log.v(TAG, "Containing Window Panel: " + wp);
+			logWindowList("  ");
+			logQuickWMSState();
+		}
+		if(DEBUG_FOCUS) {
+			Log.v(TAG, "Focus state before moving window panel to the top");
+			Log.v(TAG, "\tmCurrentFocus: " + mCurrentFocus);
+			Log.v(TAG, "\tmLastFocus: " + mLastFocus);
+			Log.v(TAG, "\tmFocusedApp: " + mFocusedApp);
+			Log.v(TAG, "\tmFocusMayChange: " + mFocusMayChange);
+			Log.v(TAG, "\tmLosingFocus: " + mLosingFocus);
+		}
+		//Cases that we don't want to take action:
+		//Null WP's occur when the event is actually being sent to dialogs, IME, etc...
+		if(wp == null) {
+			if(DEBUG_REORDER) {
+				Log.v(TAG, "WP is null. Nothing to move to top");
+			}
+			return;
+		} else if(wp.isCornerstone()) {
+			//Don't bring the cornerstone itself to the top
+			if(DEBUG_REORDER) {
+				Log.v(TAG, "WP is Cornerstone. Do not move to the top.");
+			}
+			return;
+		} else {
+			//Don't act if WP is already at the top. Shouldn't happen ever, as there
+			//is a test for this in ViewRootImpl before this method is triggered.
+
+			//Find topmost appwindow token
+			int topMostGroupId = -1;
+			for(int i=mWindows.size()-1; i>=0; i--) {
+				WindowState win = mWindows.get(i);
+				if(win.mAppToken!=null) {
+					topMostGroupId = win.mAppToken.groupId;
+					break;
+				}
+			}
+            /**
+             * Author: Onskreen
+             * Date: 13/07/2011
+             *
+             * Ensures that topmost appwindow token is the requested token to gain the focus.
+             * Previously the implementation was only considering the topmost window in mWindows
+             * list but it wasn't taking in to account that whether the requested app window token
+             * is equivalent to the topMostGroupId variable and hence was not changing the focus.
+             */
+			AppWindowToken appToken = findAppWindowToken(token);
+			int groupId = topMostGroupId;
+			if(appToken != null){
+				groupId = appToken.groupId;
+			}
+			if((wp.contains(topMostGroupId)) && (groupId == topMostGroupId)) {
+				if(DEBUG_REORDER) {
+					Log.v(TAG, "WP is already at top. Nothing to do.");
+				}
+
+               /**
+                * Author: Onskreen
+                * Date: 10/06/2011
+                *
+                * Notifies the CSPanel to update the app header image if the main
+                * panel activity is already on top without changing its z-order.
+                */
+				if(wp.mCornerstonePanelIndex == -1){
+					try {
+						WindowState win = getFocusedWindow();
+						if(win != null) {
+							String pkg = win.mAttrs.packageName;
+							mActivityManager.broadcastCornerstonePanelFocusChanged(pkg, true, -1);
+						}
+					} catch (android.os.RemoteException e){
+						Log.i(TAG, "Remote Exception while notifying to CSPanel: " + e);
+					}
+				}
+					return;
+			}
+		}
+
+        /**
+         * Author: Onskreen
+         * Date: 25/05/2011
+         *
+         * Before transferring the focus to new activity, close any system dialogs (menu,
+         * virtual keyboard etc.) only when there is no dialog on top.
+         */
+         WindowState w = getFocusedWindow();
+         if(w != null){
+           try{
+               if(w != null) {
+                   w.mClient.closeSystemDialogs("menu");
+               }
+           } catch (android.os.RemoteException e) {
+               Slog.i(WindowManagerService.TAG, "Remote Exception while transferring focus: " + e);
+           }
+
+           //Set up so that there is no transition planned and window is moved immediately
+           final long origId = Binder.clearCallingIdentity();
+           prepareAppTransition(WindowManagerPolicy.TRANSIT_UNSET,false);
+
+           //Get all the tokens in the WP to move
+           ArrayList<IBinder> tokensToMove = new ArrayList<IBinder>();
+           tokensToMove = wp.getAllTokens();
+
+           //Moves to the top and also deals with focus/unfocus processing
+           moveAppTokensToTop(tokensToMove);
+           Binder.restoreCallingIdentity(origId);
+
+           //Manually setting focused application. Not clear how this is used by WMS anymore
+           //besides when sending details to the native side input processing. Not using WMS.setFocusedApp
+           //as that has reprucussions of calling update methods that repeat what was just
+           //by the method calls above.
+           mFocusedApp = findAppWindowToken(token);
+
+           if(DEBUG_FOCUS) {
+               Log.v(TAG, "Focus state after moving window frame to the top");
+               Log.v(TAG, "\tmCurrentFocus: " + mCurrentFocus);
+               Log.v(TAG, "\tmLastFocus: " + mLastFocus);
+               Log.v(TAG, "\tmFocusedApp: " + mFocusedApp);
+               Log.v(TAG, "\tmFocusMayChange: " + mFocusMayChange);
+               Log.v(TAG, "\tmLosingFocus: " + mLosingFocus);
+           }
+
+           try {
+               WindowState win = getFocusedWindow();
+               String pkg = win.mAttrs.packageName;
+               mActivityManager.broadcastCornerstonePanelFocusChanged(pkg, true, wp.mCornerstonePanelIndex);
+           } catch (android.os.RemoteException e){
+               Log.i(TAG, "Remote Exception while notifying to CSPanel: " + e);
+           } catch (NullPointerException e) {
+               Log.i(TAG, "Null Pointer Exception while handling focus: " + e);
+           }
+        }
+    }
+
+    /**
+     * Author: Onskreen
+     * Date: 21/02/2011
+     *
+     * Convienence method for AMS to be able to trigger a focus change.
+     */
+     public void handleFocusChange(IBinder token) {
+        AppWindowToken appToken = findAppWindowToken(token);
+        /**
+         * Author: Onskreen
+         * Date: 30/04/2011
+         *
+         * Safety check for observed failures.
+         */
+        if(appToken == null) {
+             Log.w(TAG, "Attempt to call handleFocusChange with broken token:");
+             Log.w(TAG, "\ttoken: " + token);
+             return;
+        }
+
+        WindowState w = appToken.findMainWindow();
+        /**
+         * Author: Onskreen
+         * Date: 23/04/2011
+         *
+         * Safety check for observed failures.
+         */
+        if(w != null && w.mSession != null) {
+            w.mSession.handleFocusChange(token);
+        } else {
+             Log.w(TAG, "Attempt to call handleFocusChange with broken token:");
+             Log.w(TAG, "\ttoken: " + token);
+             Log.w(TAG, "\tappToken: " + appToken);
+             Log.w(TAG, "\tw: " + w);
+             if(w!=null) {
+                 Log.w(TAG, "\tw.mSession: " + w.mSession);
+             }
+        }
+     }
+
+    /**
+     * Author: Onskreen
+     * Date: 12/01/2011
+     *
+     *	Conveinence method to get the rect for a Window Panel
+     *
+     * @return The default rectangle of the window panel
+     */
+    public Rect computeWindowPanelRect(WindowPanel wp, int orientation, Cornerstone_State csState) {
+		Rect rect = null;
+
+		if(wp.isCornerstonePanel() && wp.mCornerstonePanelIndex == 0) {
+			rect = computeWindowPanelRect(WP_Panel.CS_APP_0, orientation, csState);
+		} else if(wp.isCornerstonePanel() && wp.mCornerstonePanelIndex == 1) {
+			rect = computeWindowPanelRect(WP_Panel.CS_APP_1, orientation, csState);
+		} else if(wp.isMainPanel()) {
+			rect = computeWindowPanelRect(WP_Panel.MAIN_PANEL, orientation, csState);
+		} else if(wp.isCornerstone()) {
+			rect = computeWindowPanelRect(WP_Panel.CORNERSTONE, orientation, csState);
+		} else {
+			//ERROR CONDITION
+			rect = new Rect(0, 0, 0, 0);
+		}
+
+		return rect;
+    }
+
+    /**
+     * Author: Onskreen
+     * Date: 12/01/2011
+     *
+     * Calculates the default rendering rectange of the
+     * window panel. for the given orientation and csState
+     *
+     * Some of this logic belongs in the Policy, not here. The confusion it creates is evident by difficulty of dealing with decor.
+     *
+     * TODO Assumes that no decor possible exists at the top of the screen. This could fail in specific layouts and should really
+     * be determined based on the policy.
+     *
+     * @return The default rectangle of the window panel given the orientation
+     */
+    public Rect computeWindowPanelRect(WP_Panel panel, int orientation, Cornerstone_State csState) {
+        /**Now using to calculate in various rotations other than the current, so be sure
+         * to use the appropriate width/height
+         */
+        int fullWidth, fullHeight;
+        if(orientation == Configuration.ORIENTATION_LANDSCAPE ||
+                orientation == Configuration.ORIENTATION_SQUARE ||
+                orientation == Configuration.ORIENTATION_UNDEFINED) {
+            if(mBaseDisplayWidth > mBaseDisplayHeight) {
+                fullWidth = mBaseDisplayWidth;
+                fullHeight = mBaseDisplayHeight;
+            } else {
+                fullWidth = mBaseDisplayHeight;
+                fullHeight = mBaseDisplayWidth;
+            }
+        } else if(orientation == Configuration.ORIENTATION_PORTRAIT) {
+            if(mBaseDisplayWidth < mBaseDisplayHeight) {
+                fullWidth = mBaseDisplayWidth;
+                fullHeight = mBaseDisplayHeight;
+            } else {
+                fullWidth = mBaseDisplayHeight;
+                fullHeight = mBaseDisplayWidth;
+            }
+        } else {
+			fullWidth = mBaseDisplayWidth;
+			fullHeight = mBaseDisplayHeight;
+        }
+        final int displayWidth = mPolicy.getNonDecorDisplayWidth(fullWidth, fullHeight, orientation);
+        final int displayHeight = mPolicy.getNonDecorDisplayHeight(fullWidth, fullHeight, orientation);
+
+        if(DEBUG_WP_CONFIG) {
+            if(orientation == Configuration.ORIENTATION_LANDSCAPE)
+                Log.w(TAG, "Compute Rect. Panel: " + panel + " for orientation: " + orientation + "[LANDSCAPE]");
+            else if(orientation == Configuration.ORIENTATION_PORTRAIT)
+                Log.w(TAG, "Compute Rect. Panel: " + panel + " for orientation: " + orientation + "[PORTRAIT]");
+            else if(orientation == Configuration.ORIENTATION_UNDEFINED)
+                Log.w(TAG, "Compute Rect. Panel: " + panel + " for orientation: " + orientation + "[UNDEFINED]");
+            else if(orientation == Configuration.ORIENTATION_SQUARE)
+                Log.w(TAG, "Compute Rect. Panel: " + panel + " for orientation: " + orientation + "[SQUARE]");
+            if(mCurConfiguration.orientation == Configuration.ORIENTATION_LANDSCAPE)
+                Log.w(TAG, "\tDevice Actual Orientation: LANDSCAPE");
+            else if(orientation == Configuration.ORIENTATION_PORTRAIT)
+                Log.w(TAG, "\tDevice Actual Orientation: PORTRAIT");
+            else if(orientation == Configuration.ORIENTATION_UNDEFINED)
+                Log.w(TAG, "\tDevice Actual Orientation: UNDEFINED");
+            else if(orientation == Configuration.ORIENTATION_SQUARE)
+                Log.w(TAG, "Device Actual Orientation: SQUARE");
+			Log.w(TAG, "\tActual Cornerstone State: " + mCornerstoneState + " Requested CS State: " + csState);
+        }
+
+		Rect emptyRect = new Rect(0, 0, 0, 0);
+		Rect fullDisplayRect = new Rect(0,0,displayWidth,displayHeight);
+		//during startup the display may not yet be configured
+		if(mDisplay == null) {
+			return emptyRect;
+		}
+
+		//If the state is TERMINATED, return the full display
+		if(mCornerstoneState == Cornerstone_State.TERMINATED) {
+			if(panel == WP_Panel.MAIN_PANEL) {
+				if(DEBUG_WP_CONFIG) Log.w(TAG, "\tCase: TERMINATED\tPanel: Main\tReturning: " + fullDisplayRect);
+				return fullDisplayRect;
+			} else {
+                /**
+                 * Author: Onskreen
+                 * Date: 05/01/2012
+                 *
+                 * Returns the empty rect starting from screen width and height
+                 * when Cornerstone is terminating or exiting. This resolves
+                 * the weird exit animation/visual bug we found when user
+                 * terminates cornerstone.
+                 */
+				if(orientation == Configuration.ORIENTATION_LANDSCAPE ||
+						orientation == Configuration.ORIENTATION_UNDEFINED){
+					emptyRect = new Rect(displayWidth, displayHeight, displayWidth, displayHeight);
+				} else if(orientation == Configuration.ORIENTATION_PORTRAIT) {
+					emptyRect = new Rect(displayHeight, displayWidth, displayHeight, displayWidth);
+				}
+				if(DEBUG_WP_CONFIG) Log.w(TAG, "\tCase: TERMINATED\tPanel:" + panel +"\tReturning: " + emptyRect);
+				return emptyRect;
+			}
+		}
+
+		//While getting initialized just be safe and return an empty rect
+		Rect finalRect = emptyRect;
+		if(panel == WP_Panel.MAIN_PANEL) {
+            int mainPanelWidth = 0;
+            int mainPanelHeight = 0;
+			if(orientation == Configuration.ORIENTATION_LANDSCAPE ||
+						orientation == Configuration.ORIENTATION_UNDEFINED){
+				mainPanelHeight = displayHeight;
+                switch(csState) {
+                    case RUNNING_OPEN:
+                        mainPanelWidth = displayWidth - (mCornerstonePanelLandscapeWidth + mCornerstoneHandlerLandscapeWidth);
+                        break;
+                    case RUNNING_CLOSED:
+                        mainPanelWidth = displayWidth - (mCornerstoneHandlerLandscapeWidth);
+                        break;
+                }
+                finalRect = new Rect(0, 0, mainPanelWidth, mainPanelHeight);
+            } else if(orientation == Configuration.ORIENTATION_PORTRAIT){
+                mainPanelWidth = displayWidth;
+                switch(csState) {
+                    case RUNNING_OPEN:
+                        /**
+                         * Author: Onskreen
+                         * Date: 09/06/2011
+                         *
+                         * Removed the mCornerstonePanelPortraitGutter variable while calculating
+                         * the height of the main panel when activity is in portrait mode to prevent
+                         * showing the visible gap between main panel and cornerstone panel handler.
+                         */
+                        mainPanelHeight = displayHeight - (mCornerstonePanelPortraitHeight + mCornerstoneHandlerPortraitWidth + mCornerstoneAppHeaderPortraitHeight);
+                        break;
+                    case RUNNING_CLOSED:
+                        mainPanelHeight = displayHeight - (mCornerstoneHandlerPortraitWidth);
+                        break;
+                }
+                finalRect = new Rect(0, 0, mainPanelWidth, mainPanelHeight);
+            }
+			if(DEBUG_WP_CONFIG) Log.w(TAG, "\tReturning: " + finalRect);
+			return finalRect;
+		} else if(panel == WP_Panel.CORNERSTONE) {
+            int csStartWidth = 0;
+            int csEndWidth = 0;
+            int csStartHeight  = 0;
+            int csEndHeight = 0;
+			if(orientation == Configuration.ORIENTATION_LANDSCAPE ||
+							orientation == Configuration.ORIENTATION_UNDEFINED){
+				csStartHeight = 0;
+				csEndHeight = displayHeight;
+				switch(csState) {
+					case RUNNING_OPEN:
+						csStartWidth = displayWidth - (mCornerstonePanelLandscapeWidth + mCornerstoneHandlerLandscapeWidth);
+						csEndWidth = displayWidth;
+						break;
+					case RUNNING_CLOSED:
+						csStartWidth = displayWidth - (mCornerstoneHandlerLandscapeWidth);
+						csEndWidth = displayWidth + mCornerstonePanelLandscapeWidth;
+						break;
+				}
+                finalRect = new Rect(csStartWidth, csStartHeight, csEndWidth, csEndHeight);
+			} else if(orientation == Configuration.ORIENTATION_PORTRAIT){
+				csStartWidth = 0;
+				csEndWidth = displayWidth;
+				switch(csState) {
+					case RUNNING_OPEN:
+						csStartHeight = displayHeight - (mCornerstonePanelPortraitHeight + mCornerstoneAppHeaderPortraitHeight + mCornerstoneHandlerPortraitWidth);
+						csEndHeight = displayHeight;
+						break;
+					case RUNNING_CLOSED:
+						csStartHeight = displayHeight - (mCornerstoneHandlerPortraitWidth);
+						csEndHeight = displayHeight + (mCornerstonePanelPortraitHeight + mCornerstoneAppHeaderPortraitHeight);
+						break;
+				}
+                finalRect = new Rect(csStartWidth, csStartHeight, csEndWidth, csEndHeight);
+			}
+			if(DEBUG_WP_CONFIG) Log.w(TAG, "\tReturning: " + finalRect);
+            return finalRect;
+		} else if(panel == WP_Panel.CS_APP_0 || panel == WP_Panel.CS_APP_1) {
+            int index = 0;
+            if(panel == WP_Panel.CS_APP_0) {
+                index = 0;
+            } else if(panel == WP_Panel.CS_APP_1) {
+                index = 1;
+            }
+            int panelStartWidth = 0;
+            int panelEndWidth = 0;
+            int panelStartHeight = 0;
+            int panelEndHeight = 0;
+            if(orientation == Configuration.ORIENTATION_LANDSCAPE ||
+                    orientation == Configuration.ORIENTATION_UNDEFINED){
+                if(DEBUG_WP_CONFIG) {
+                    Log.w(TAG, "\tConfirmed: Orientation: landscape or undefined");
+                }
+                panelStartHeight = (index * (mCornerstonePanelLandscapeHeight)) + ((index + 1) * mCornerstoneAppHeaderLandscapeHeight);
+                panelEndHeight = panelStartHeight + mCornerstonePanelLandscapeHeight;
+                switch(csState) {
+                    case RUNNING_OPEN:
+                        panelStartWidth = displayWidth - (mCornerstonePanelLandscapeWidth);
+                        panelEndWidth = displayWidth;
+                        break;
+                    case RUNNING_CLOSED:
+                        panelStartWidth = displayWidth;
+                        panelEndWidth = displayWidth + mCornerstonePanelLandscapeWidth;
+                        break;
+                }
+                finalRect = new Rect(panelStartWidth, panelStartHeight, panelEndWidth, panelEndHeight);
+            } else if(orientation == Configuration.ORIENTATION_PORTRAIT){
+                panelStartWidth = (index * (displayWidth - mCornerstonePanelPortraitWidth));
+                panelEndWidth = ((index + 1) * mCornerstonePanelPortraitWidth) + (index * mCornerstonePanelPortraitGutter);
+                switch(csState) {
+                    case RUNNING_OPEN:
+                        panelStartHeight = displayHeight - mCornerstonePanelPortraitHeight;
+                        panelEndHeight = displayHeight;
+                        break;
+                    case RUNNING_CLOSED:
+                        panelStartHeight = displayHeight + mCornerstoneAppHeaderPortraitHeight;
+                        panelEndHeight = displayHeight + (mCornerstoneAppHeaderPortraitHeight + mCornerstonePanelPortraitHeight);
+                        break;
+                }
+                finalRect = new Rect(panelStartWidth, panelStartHeight, panelEndWidth, panelEndHeight);
+            }
+            if(DEBUG_WP_CONFIG) Log.w(TAG, "\tReturning: " + finalRect);
+            return finalRect;
+		}
+
+		if(DEBUG_WP_CONFIG) Log.w(TAG, "\tCASE: Unknown\tReturning: " + emptyRect);
+		return emptyRect;
+
+    }
+
+    /**
+     * Author: Onskreen
+     * Date: 12/01/2011
+     *
+     * Sets the frames of the WindowPanel (and associated WindowStates) according to type
+     * of apps (main or side panel).
+     */
+     public void setWindowPanel(int groupId) {
+		WindowPanel  currWP = findWindowPanel(groupId);
+		Rect rect = new Rect();
+		if(currWP != null) {
+			//If the wp hasn't been initialized it is new and must be setup
+			if(!currWP.mPosInitatlized) {
+                /**
+                 * Author: Onskreen
+                 * Date: 14/04/2011
+                 *
+                 * It may happen that user boots the device in portrait mode and
+                 * cornerstone must be laid out to the correct location on screen.
+                 */
+				rect = computeWindowPanelRect(currWP, mCurConfiguration.orientation, mCornerstoneState);
+				//Set the Window Panel
+				currWP.setFrame(rect);
+			}
+		}
+     }
+
+    /**
+     * Author: Onskreen
+     * Date: 04/03/2011
+     *
+     * Swap the specified main panel tokens with the cornerstone panel identified by the panelIndex
+     *
+     * - Move the tokens from the WP they are in and place where they should be. At the same time
+     * reorder the z-order so that all the tokens of the same WP are adjacent and are in the z-order
+     * as we want them before moving them around the screen.
+     * - Move and resize the tokens appropriately.
+     */
+    public void executePanelSwap(int panelIndex,
+            List<IBinder> mainPanelTokensToMove,
+            List<IBinder> csPanelTokensToMove,
+            boolean moveCSPanelTokens) {
+
+        /**
+         * Author: Onskreen
+         * Date: 07/06/2011
+         *
+         * The performLayoutAndPlaceSurfacesLocked method call must be triggered
+         * inside the synchronized block to prevent from any thread synchronization
+         * issue resulting in screen getting not refreshed.
+         */
+        synchronized(mWindowMap) {
+			//Locate the window panels to move from and to.
+			WindowPanel csPanelWP = null;
+			WindowPanel mainPanelWP = null;
+			for(int i=0; i<mWindowPanels.size(); i++) {
+				WindowPanel wp = mWindowPanels.get(i);
+				if(wp.isMainPanel()) {
+					mainPanelWP = wp;
+				} else if(wp.isCornerstonePanel() && wp.mCornerstonePanelIndex == panelIndex) {
+					csPanelWP = wp;
+				}
+			}
+
+			if(mainPanelWP == null) {
+				if(DEBUG_CORNERSTONE) {
+					Log.w(TAG, "Can't find main panel wp when trying to switch panels of cornerstone window panel!");
+				}
+				return;
+			}
+			if(csPanelWP == null) {
+				if(DEBUG_CORNERSTONE) {
+					Log.w(TAG, "Can't find cs panel wp for index: " + panelIndex + " when trying to switch panels of cornerstone window panel!");
+				}
+				return;
+			}
+
+			//Keep track of group ids that are moved for use later
+			ArrayList<Integer> mainPanelGroupsMoved = new ArrayList<Integer>();
+			ArrayList<Integer> csPanelGroupsMoved = new ArrayList<Integer>();
+
+			//Make sure the Window Z-Order is what we want before completing the visual move
+			csPanelWP.moveWindowPanelToFront();
+			if(!mainPanelTokensToMove.isEmpty()) {
+                /**
+                 * The value of this is set explictitly instead of using prepareAppTransition()
+                 * because when this is being used during panel swapping the flag doesn't get
+                 * set the way we want it to, to force the windows to be moved immediately.
+                 */
+				mNextAppTransition = WindowManagerPolicy.TRANSIT_UNSET;
+				moveAppTokensToTop(mainPanelTokensToMove);
+
+				//Combine the window panel containing the tokens to move with the main
+				//panel window panel.
+				for(int i=0; i<mAppTokens.size(); i++) {
+					AppWindowToken appToken = mAppTokens.get(i);
+					for(int k=0; k<mainPanelTokensToMove.size(); k++) {
+						Object o = mainPanelTokensToMove.get(k);
+						if(o == appToken.token) {
+							csPanelWP.addGroupId(appToken.groupId);
+							mainPanelWP.removeGroupId(appToken.groupId);
+							mainPanelGroupsMoved.add(appToken.groupId);
+							break;
+						}
+					}
+				}
+			}
+
+			mainPanelWP.moveWindowPanelToFront();
+			//Ensure Tokens (Z-Order is as expected) This will trigger a PLAPSL() so have to
+			//be sure not to have reset the window's pos that were moved yet
+			if(moveCSPanelTokens) {
+                /**
+                 * The value of this is set explictitly instead of using prepareAppTransition()
+                 * because when this is being used during panel swapping the flag doesn't get
+                 * set the way we want it to, to force the windows to be moved immediately.
+                 */
+				mNextAppTransition = WindowManagerPolicy.TRANSIT_UNSET;
+				moveAppTokensToTop(csPanelTokensToMove);
+
+				//Move the cs panel tokens to the main panel window panel.
+				if(moveCSPanelTokens) {
+					for(int i=0; i<mAppTokens.size(); i++) {
+						AppWindowToken appToken = mAppTokens.get(i);
+						for(int k=0; k<csPanelTokensToMove.size(); k++) {
+							Object o = csPanelTokensToMove.get(k);
+							if(o == appToken.token) {
+								mainPanelWP.addGroupId(appToken.groupId);
+								csPanelWP.removeGroupId(appToken.groupId);
+								csPanelGroupsMoved.add(appToken.groupId);
+								break;
+							}
+						}
+					}
+				} else {
+					if(DEBUG_CORNERSTONE) {
+						Log.w(TAG, "Not moving CS Panel Tokens to main panel.");
+					}
+				}
+			}
+
+			if(DEBUG_CORNERSTONE) {
+				Log.w(TAG, "Window State before swapping panels");
+				logQuickWMSState();
+			}
+
+			WindowState mainWinToBe = null;
+			WindowState csPanelWinToBe = null;
+
+			for(int i=0; i<mWindows.size(); i++) {
+				WindowState win = mWindows.get(i);
+				if(win.mAppToken!=null) {
+					if(mainPanelGroupsMoved.contains(win.mAppToken.groupId))
+						csPanelWinToBe = win;
+					else if(csPanelGroupsMoved.contains(win.mAppToken.groupId))
+						mainWinToBe = win;
+				}
+			}
+
+			int numLayouts = 3;
+
+			int mainWinToBeEndWidth = mainPanelWP.getPos().width();
+			int mainWinToBeEndHeight = mainPanelWP.getPos().height();
+			int mainWinToBeEndPosLeft = mainPanelWP.getPos().left;
+			int mainWinToBeEndPosTop = mainPanelWP.getPos().top;
+
+			int mainWinToBeCurrLeft = csPanelWP.getPos().left;
+			int mainWinToBeCurrTop = csPanelWP.getPos().top;
+			int mainWinToBeCurrWidth = csPanelWP.getPos().width();
+			int mainWinToBeCurrHeight = csPanelWP.getPos().height();
+
+			int mainWinToBeLeftDelta = (mainWinToBeEndPosLeft-mainWinToBeCurrLeft)/numLayouts;
+			int mainWinToBeTopDelta = (mainWinToBeEndPosTop-mainWinToBeCurrTop)/numLayouts;
+			int mainWinToBeWidthDelta =  (mainWinToBeEndWidth-mainWinToBeCurrWidth)/numLayouts;
+			int mainWinToBeHeightDelta = (mainWinToBeEndHeight-mainWinToBeCurrHeight)/numLayouts;
+
+			int csWinToBeEndWidth = csPanelWP.getPos().width();
+			int csWinToBeEndHeight = csPanelWP.getPos().height();
+			int csWinToBeEndPosLeft = csPanelWP.getPos().left;
+			int csWinToBeEndPosTop = csPanelWP.getPos().top;
+
+			int csWinToBeCurrLeft = mainPanelWP.getPos().left;
+			int csWinToBeCurrTop = mainPanelWP.getPos().top;
+			int csWinToBeCurrWidth = mainPanelWP.getPos().width();
+			int csWinToBeCurrHeight = mainPanelWP.getPos().height();
+
+			int csWinToBeLeftDelta = (csWinToBeEndPosLeft-csWinToBeCurrLeft)/numLayouts;
+			int csWinToBeTopDelta = (csWinToBeEndPosTop-csWinToBeCurrTop)/numLayouts;
+			int csWinToBeWidthDelta =  (csWinToBeEndWidth-csWinToBeCurrWidth)/numLayouts;
+			int csWinToBeHeightDelta = (csWinToBeEndHeight-csWinToBeCurrHeight)/numLayouts;
+
+            /**
+             * All the moves minus the very final move. We get the
+             * windows close to their final position and then resize them
+             * so that the resize (which actually lays out after the final move)
+             * happens as quickly as possible.
+             */
+
+            /**
+             * Author: Onskreen
+             * Date: 19/11/2011
+             *
+             * Commented out the below block of code as mainWinToBe and csPanelWinToBe
+             * frames were not updated. So to improve the performance, we're commenting
+             * out the below code.
+             */
+			/*for(int i=0; i<(numLayouts-1); i++) {
+				if(mainWinToBe != null && moveCSPanelTokens) {
+					mainWinToBe.mFrame.set(mainWinToBe.mFrame.left+mainWinToBeLeftDelta,
+						mainWinToBe.mFrame.top+mainWinToBeTopDelta,
+						mainWinToBe.mFrame.right+mainWinToBeLeftDelta,
+						mainWinToBe.mFrame.bottom+mainWinToBeTopDelta);
+				}
+
+				if(csPanelWinToBe != null) {
+					csPanelWinToBe.mFrame.set(csPanelWinToBe.mFrame.left+csWinToBeLeftDelta,
+						csPanelWinToBe.mFrame.top+csWinToBeTopDelta,
+						csPanelWinToBe.mFrame.right+csWinToBeLeftDelta,
+						csPanelWinToBe.mFrame.bottom+csWinToBeTopDelta);
+				}
+
+				mLayoutNeeded=true;
+				performLayoutAndPlaceSurfacesLocked();
+			}*/
+
+            /**
+             * Tried to pause the next call until the previous once completes. Left
+             * in for reference. Issues is that mInLayout is set back to false at
+             * end of PLAPSL(), but there is still processing in the other
+             * WMS.performXXX methods. Perhaps introducing a new flag that doesn't
+             * get flipped until all WMS.performXXX methods are completed?
+             */
+	/*		while(mInLayout) {
+				if(DEBUG_CORNERSTONE){
+					Log.v(TAG, "Waiting for 2nd move before resizing");
+				}
+			}
+	*/
+			//Resize the windows in their intermediate positions
+           /**
+            * Author: Onskreen
+            * Date: 19/11/2011
+            *
+            * Previously we were setting the mFrame size for mainWinToBe and csPanelWinToBe
+            * windows of their own mFrame which was not updating their layout rect size. We
+            * should set the csPanelWinToBe.mFrame to mainWinToBe and mainWinToBe.mFrame to
+            * csPanelWinToBe.
+            */
+			try {
+				if(mainWinToBe != null && moveCSPanelTokens && csPanelWinToBe != null) {
+					mainWinToBe.mClient.resized(csPanelWinToBe.mFrame.width(),
+						csPanelWinToBe.mFrame.height(), csPanelWinToBe.mLastContentInsets,
+						csPanelWinToBe.mLastVisibleInsets, csPanelWinToBe.mWinAnimator.mDrawState == WindowStateAnimator.DRAW_PENDING,
+						csPanelWinToBe.mConfiguration);
+				}
+
+				if(csPanelWinToBe != null && mainWinToBe != null) {
+					csPanelWinToBe.mClient.resized(mainWinToBe.mFrame.width(),
+						mainWinToBe.mFrame.height(), mainWinToBe.mLastContentInsets,
+						mainWinToBe.mLastVisibleInsets, mainWinToBe.mWinAnimator.mDrawState == WindowStateAnimator.DRAW_PENDING,
+						mainWinToBe.mConfiguration);
+				}
+
+				mLayoutNeeded=true;
+				performLayoutAndPlaceSurfacesLocked();
+			} catch (RemoteException e) {
+				e.printStackTrace();
+			}
+
+			//Make the last move to the final position
+			if(mainWinToBe != null && moveCSPanelTokens) {
+				mainWinToBe.mFrame.set(mainWinToBeEndPosLeft,
+					mainWinToBeEndPosTop,
+					mainWinToBeEndPosLeft+mainWinToBeEndWidth,
+					mainWinToBeEndPosTop+mainWinToBeEndHeight);
+			}
+			if(csPanelWinToBe != null) {
+				csPanelWinToBe.mFrame.set(csWinToBeEndPosLeft,
+					csWinToBeEndPosTop,
+					csWinToBeEndPosLeft+csWinToBeEndWidth,
+					csWinToBeEndPosTop+csWinToBeEndHeight);
+			}
+
+			mLayoutNeeded=true;
+			performLayoutAndPlaceSurfacesLocked();
+
+			//Ensure that all windows in the WP have the correct pos
+			mainPanelWP.updateFrames();
+			csPanelWP.updateFrames();
+          }
+		/*
+		//Old way of doing the move that is left for reference.
+		//Update frames of both panels
+		mainPanelWF.updateFrames();
+		csPanelWF.updateFrames();
+
+        /**
+         * For those window panels that were moved, we have to destroy and recreate their
+         * surfaces so that they do not appear as the wrong size when first displayed, and
+         * then have their surface updated by the logic of PLAPSL().
+         *
+		mainPanelWF.resetSurfaces(csPanelGroupsMoved, true);
+		csPanelWF.resetSurfaces(mainPanelGroupsMoved, true);
+		 */
+
+        /**
+         * Leaving this in as reference. The goal was to move and resize
+         * proportinately at each move so that the resize was smooth. Issue is
+         * same as has occurred previously, can't move and resize in one move.
+         * The resizes being called here were not being visually updated
+         * to the screen until all the moves were completed, so didn't
+         * acheive what it was trying to do.
+         */
+/*		for(int i=0; i<numLayouts; i++) {
+
+			if(mInLayout) {
+				if(DEBUG_CORNERSTONE){
+					Log.v(TAG, "Skipping move of panel until last layout is complete");
+				}
+				i--;
+				continue;
+			}
+			mainWinToBe.mFrame.set(mainWinToBe.mFrame.left+mainWinToBeLeftDelta,
+					mainWinToBe.mFrame.top+mainWinToBeTopDelta,
+					mainWinToBe.mFrame.right+mainWinToBeLeftDelta+mainWinToBeWidthDelta,
+					mainWinToBe.mFrame.bottom+mainWinToBeTopDelta+mainWinToBeHeightDelta);
+			mainWinToBe.mSurfaceResized = true;
+
+			csPanelWinToBe.mFrame.set(csPanelWinToBe.mFrame.left+csWinToBeLeftDelta,
+					csPanelWinToBe.mFrame.top+csWinToBeTopDelta,
+					csPanelWinToBe.mFrame.right+csWinToBeLeftDelta+csWinToBeWidthDelta,
+					csPanelWinToBe.mFrame.bottom+csWinToBeTopDelta+csWinToBeHeightDelta);
+			csPanelWinToBe.mSurfaceResized = true;
+
+			mLayoutNeeded=true;
+			performLayoutAndPlaceSurfacesLocked();
+
+/*			try {
+				mainWinToBe.mClient.resized(mainWinToBe.mFrame.width(),
+						mainWinToBe.mFrame.height(), mainWinToBe.mLastContentInsets,
+						mainWinToBe.mLastVisibleInsets, mainWinToBe.mWinAnimator.mDrawState == WindowStateAnimator.DRAW_PENDING,
+						mainWinToBe.mConfiguration);
+
+				csPanelWinToBe.mClient.resized(csPanelWinToBe.mFrame.width(),
+						csPanelWinToBe.mFrame.height(), csPanelWinToBe.mLastContentInsets,
+						csPanelWinToBe.mLastVisibleInsets, csPanelWinToBe.mWinAnimator.mDrawState == WindowStateAnimator.DRAW_PENDING,
+						csPanelWinToBe.mConfiguration);
+
+				mLayoutNeeded=true;
+				performLayoutAndPlaceSurfacesLocked();
+			} catch (RemoteException e) {
+				e.printStackTrace();
+			}
+		}
+*/
+	}
+
+    /**
+     * Author: Onskreen
+     * Date: 24/01/2011
+     *
+     * Utility method to find the WindowPanel which contains the given group id
+     */
+    public WindowPanel findWindowPanel(int groupId) {
+        for (int i = 0; i < mWindowPanels.size(); i++) {
+            WindowPanel wp = mWindowPanels.get(i);
+            // Found the Window Panel containing this token's group
+            if (wp.contains(groupId)) {
+                return wp;
+            }
+        }
+        // whoops, no wp contains this groupid
+        return null;
+    }
+
+    /**
+     * Author: Onskreen
+     * Date: 24/01/2011
+     *
+     * Utility method to find the WindowPanel which contains the given token
+     */
+    public WindowPanel findWindowPanel(IBinder token) {
+        for (int i = 0; i < mWindowPanels.size(); i++) {
+            WindowPanel wp = mWindowPanels.get(i);
+
+            // Found the Window Panel containing this token's group
+            if (wp.contains(token)) {
+                return wp;
+            }
+        }
+        // whoops, no wp contains this groupid
+        return null;
+    }
+
     private WindowState findWindow(int hashCode) {
         if (hashCode == -1) {
             // TODO(multidisplay): Extend to multiple displays.
@@ -7231,7 +9160,7 @@ public class WindowManagerService extends IWindowManager.Stub
         }
     }
 
-    private WindowState getFocusedWindow() {
+    public WindowState getFocusedWindow() {
         synchronized (mWindowMap) {
             return getFocusedWindowLocked();
         }
@@ -7344,6 +9273,596 @@ public class WindowManagerService extends IWindowManager.Stub
             }
         }
     }
+
+    /**
+     * Author: Onskreen
+     * Date: 24/01/2011
+     *
+     * Window Panel Structure
+     */
+    final class WindowPanel {
+        // List of AppWindowTokens that are included in this Window Panel.
+        // Keying off of group id
+        ArrayList<Integer> mGroupIds = new ArrayList<Integer>();
+
+        // Rectangle of the Window Panel
+        Rect mWPPos = new Rect();
+
+        // Has the rectangle position been initalized
+        boolean mPosInitatlized = false;
+
+        //Is the window panel in the main panel.
+        boolean mMainPanel = true;
+
+        //Is the window panel a panel in the cornerstone. THe cornerstone itself is not considered
+        //to be a panel
+        boolean mCornerstonePanel = false;
+
+        //If the window panel is a cornerstone panel, what is it's index. -1 indicates no value
+        int mCornerstonePanelIndex = -1;
+
+        //Short name to easily identify contents of wp
+        String name;
+
+        //Configuration for this specific Window Panel
+		Configuration mWPConfig;
+
+		WindowPanel() {
+		}
+
+		/**Window Panel Queries**/
+		public boolean isInitalized() {
+		    return mPosInitatlized;
+		}
+
+        public boolean isWindowPanelEmpty() {
+            return mGroupIds.isEmpty();
+        }
+
+        public boolean contains(int groupId) {
+            return mGroupIds.contains(new Integer(groupId));
+        }
+
+        public boolean contains(IBinder binder) {
+			AppWindowToken appToken = findAppWindowToken(binder);
+			if(appToken == null) {
+				return false;
+			}
+			return contains(appToken.groupId);
+        }
+
+        public boolean isMainPanel() {
+            return mMainPanel;
+		}
+
+		public boolean isCornerstone() {
+			if(!mMainPanel && !mCornerstonePanel) {
+				return true;
+			} else {
+				return false;
+			}
+		}
+
+		public boolean isCornerstonePanel() {
+			if(!mMainPanel && mCornerstonePanel) {
+				return true;
+			} else {
+				return false;
+			}
+		}
+
+		/**Tokens**/
+        /**
+         * Author: Onskreen
+         * Date: 11/02/2011
+         *
+         * Get all the Tokens (IBinder) included in this Window Panel
+         */
+        public ArrayList<IBinder> getAllTokens() {
+            ArrayList<IBinder> tokenList = new ArrayList<IBinder>();
+            for (int i = 0; i < mAppTokens.size(); i++) {
+                AppWindowToken appToken = mAppTokens.get(i);
+                if (contains(appToken.groupId)) {
+                    tokenList.add(appToken.token);
+                }
+            }
+            return tokenList;
+        }
+
+        /**
+         * Author: Onskreen
+         * Date: 25/02/2011
+         *
+         * Get the visible (topmost) token in this Window Panel. Relies on the proper z-order
+         * of WMS.mAppTokens.
+         */
+        public AppWindowToken getVisibleToken() {
+			ArrayList<IBinder> tokenList = getAllTokens();
+			for(int i=mAppTokens.size()-1; i>=0; i--) {
+				AppWindowToken token = mAppTokens.get(i);
+				if(tokenList.contains(token.token)) {
+					return token;
+				}
+			}
+			return null;
+        }
+
+		/**Frame Manipulation**/
+        public void setFrame(Rect newPos) {
+            if (DEBUG_WP_POSITIONS) {
+                Log.v(TAG, "Setting WP: " + this + " to " + newPos);
+                RuntimeException here = new RuntimeException("here");
+                here.fillInStackTrace();
+                Log.v(TAG, "Setting WP Frame", here);
+            }
+            mWPPos.set(newPos);
+            if (!mPosInitatlized) {
+                mPosInitatlized = true;
+            }
+            //update the frames of all associated windowstates
+            updateFrames();
+        }
+
+        /**
+         * Author: Onskreen
+         * Date: 21/02/2011
+         *
+         * Move the Window Panel on the visible display.
+         *
+         * @param xOffset x Offset to move the Window Panel
+         * @param yOffset y offset to move the Window Panel
+         */
+        public void move(int xOffset, int yOffset) {
+            mWPPos.offset(xOffset, yOffset);
+            //update the frames of all associated windowstates
+            updateFrames();
+        }
+
+        /**
+         * Author: Onskreen
+         * Date: 21/02/2011
+         *
+         * Resize the Window Panel on the visible display. Offsets are
+         * applied from the bottom right corner of the window panel.
+         *
+         * @param xOffset x Offset to resize the Window Panel
+         * @param yOffset y offset to resize the Window Panel
+         * @return Whether the resize was completed or not
+         */
+        public boolean resize(int xOffset, int yOffset) {
+            if (DEBUG_WP_POSITIONS) Log.v(TAG, "Resize - x offset: " + xOffset + " y offset: " + yOffset);
+            mWPPos.right += xOffset;
+            mWPPos.bottom += yOffset;
+
+            //Mark all the surfaces in the wp as resized
+            //resetSurfaces(mGroupIds, false);
+            //Update the rect values of all the frames
+            updateFrames();
+
+            return true;
+        }
+
+        /**
+         * Author: Onskreen
+         * Date: 25/01/2011
+         *
+         * Update all WindowStates that are
+         * associated with this Window Panel.
+         */
+        public void updateFrames() {
+			boolean updateFrame = false;
+            for (int i = 0; i < mAppTokens.size(); i++) {
+                AppWindowToken appToken = mAppTokens.get(i);
+                if (contains(appToken.groupId)) {
+                    int N = appToken.allAppWindows.size();
+                    for (int k = 0; k < N; k++) {
+                        WindowState win = appToken.allAppWindows.get(k);
+						WindowManager.LayoutParams attrs = win.mAttrs;
+						final int fl = attrs.flags;
+                        /**
+                         * Author: Onskreen
+                         * Date: 23/02/2012
+                         *
+                         * Determines when to allow TYPE_APPLICATION window to update
+                         * its mFrame from mWPPos rect.
+                         */
+						if(isMainPanel()) {
+							Cornerstone_State csState;
+							if(mCornerstoneStateChangeProcessing) {
+								if(mCornerstoneState == Cornerstone_State.RUNNING_CLOSED)
+									csState = Cornerstone_State.RUNNING_OPEN;
+								else
+									csState = Cornerstone_State.RUNNING_CLOSED;
+							} else {
+								csState = mCornerstoneState;
+							}
+
+							if(mCurConfiguration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+								if(csState == Cornerstone_State.RUNNING_CLOSED) {
+									updateFrame = ((win.mFrame.width() + mCornerstonePanelLandscapeWidth) == mWPPos.width()) || win.mOrientationChanging;
+								} else if(csState == Cornerstone_State.RUNNING_OPEN) {
+									updateFrame = ((win.mFrame.width() - mCornerstonePanelLandscapeWidth) == mWPPos.width()) || win.mOrientationChanging;
+								}
+							} else if(mCurConfiguration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+								if(csState == Cornerstone_State.RUNNING_CLOSED) {
+									updateFrame = ((win.mFrame.height() + mCornerstonePanelPortraitHeight + mCornerstoneAppHeaderPortraitHeight) == mWPPos.height()) || win.mOrientationChanging;
+								} else if(csState == Cornerstone_State.RUNNING_OPEN) {
+									updateFrame = ((win.mFrame.height() - mCornerstonePanelPortraitHeight - mCornerstoneAppHeaderPortraitHeight) == mWPPos.height()) || win.mOrientationChanging;
+								}
+							}
+						} else if (isCornerstonePanel()) {
+							updateFrame = false;
+						}
+
+                        /**
+                         * Author: Onskreen
+                         * Date: 20/01/2012
+                         *
+                         * The PWM.layoutWindowLw method considers the window of type
+                         * WindowManager.LayoutParams.TYPE_APPLICATION as a normal window
+                         * and sets the rect as the full screen or app's display. If we reset
+                         * the layout rect or mFrame of such window via WindowPanel.updateFrames,
+                         * then we have observed the jumping effect of such window moving from
+                         * cs panel to main panel and finally centrally aligned. Hence, we should
+                         * skip resetting WindowState.mFrame of such windows.
+                         */
+						if((attrs.type == WindowManager.LayoutParams.TYPE_APPLICATION) && !updateFrame) {
+							if (DEBUG_WP_POSITIONS)
+								Log.v(TAG, "Skip resetting mFrame for:" + win + " of type: WindowManager.LayoutParams.TYPE_APPLICATION");
+							continue;
+                        /**
+                         * Author: Onskreen
+                         * Date: 21/02/2012
+                         *
+                         * The below condition is written to identify the window
+                         * of type TYPE_BASE_APPLICATION and which looks like a
+                         * dialog window despite having valid AppWindowToken,
+                         * WindowState and the entry in to WIndowPanel class.
+                         * ResolverActivity is such kind of window. This is a
+                         * special case where we don't want to update its mFrame
+                         * as other windows. If we update its mFrame with Window
+                         * Panel's rect, then user's input area becomes larger
+                         * than such window's rendering area resulting in producing
+                         * incorrect user input. To prevent this bad user experience,
+                         * we just skip updating mFrame of such windows.
+                         */
+						} else if(attrs.type == TYPE_BASE_APPLICATION &&
+								((fl & (FLAG_LAYOUT_IN_SCREEN | FLAG_FULLSCREEN | FLAG_LAYOUT_INSET_DECOR))
+								!= (FLAG_LAYOUT_IN_SCREEN | FLAG_LAYOUT_INSET_DECOR))
+							&& ((fl & FLAG_LAYOUT_IN_SCREEN) == 0)
+							&& (win.mAttachedWindow == null)
+							&& ((fl & FLAG_LAYOUT_NO_LIMITS) == 0)) {
+							  //normal window and returns the original mFrame value.
+							if (DEBUG_WP_POSITIONS)
+								Log.v(TAG, "Skip resetting mFrame for:" + win + " of type: WindowManager.LayoutParams.TYPE_BASE_APPLICATION");
+							continue;
+
+                        /**
+                         * Author: Onskreen
+                         * Date: 04/01/2013
+                         *
+                         * If Window is visible, focused and obstructed by keyboard, then
+                         * PhoneWindowManager class has already shifted the Window to appropriate
+                         * visible location on screen above the keyboard. Don't reset its layout
+                         * rect with the generic layout rect of overall WindowPanel.
+                         */
+						} else if(win.isObstructedByKeyboard() && win.isFocused() && win.isVisibleLw()) {
+							if (DEBUG_WP_POSITIONS)
+								Log.v(TAG, "Skip resetting mFrame for:" + win + " which is currently focused, visible and obstructed by keyboard.");
+							continue;
+
+                        /**
+                         * Author: Onskreen
+                         * Date: 01/02/2013
+                         *
+                         * If Window is of type LayoutParams.TYPE_APPLICATION_PANEL, then
+                         * framework sets the mFrame of such window which looks like dropdown
+                         * window in case of Browser app (when user types something in
+                         * search/address bar). Don't reset its layout rect with the generic
+                         * layout rect of overall WindowPanel.
+						 */
+						} else if(attrs.type == TYPE_APPLICATION_PANEL && !updateFrame) {
+							if (DEBUG_WP_POSITIONS)
+								Log.v(TAG, "Skip resetting mFrame for:" + win + " of type: WindowManager.LayoutParams.TYPE_APPLICATION_PANEL");
+							continue;
+						}
+
+                        if (DEBUG_WP_POSITIONS) {
+							if(attrs.type == WindowManager.LayoutParams.TYPE_APPLICATION_ATTACHED_DIALOG) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_APPLICATION_ATTACHED_DIALOG");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_APPLICATION_MEDIA) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_APPLICATION_MEDIA");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_APPLICATION_MEDIA_OVERLAY) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_APPLICATION_MEDIA_OVERLAY");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_APPLICATION_PANEL) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_APPLICATION_PANEL");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_APPLICATION_STARTING) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_APPLICATION_STARTING");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_APPLICATION_SUB_PANEL");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_BASE_APPLICATION) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_BASE_APPLICATION");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_BOOT_PROGRESS) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_BOOT_PROGRESS");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_CHANGED) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_CHANGED");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_DRAG) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_DRAG");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_HIDDEN_NAV_CONSUMER) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_HIDDEN_NAV_CONSUMER");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_INPUT_METHOD) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_INPUT_METHOD");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_INPUT_METHOD_DIALOG) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_INPUT_METHOD_DIALOG");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_KEYGUARD) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_KEYGUARD_DIALOG");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_KEYGUARD_DIALOG) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_KEYGUARD_DIALOG");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_NAVIGATION_BAR) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_NAVIGATION_BAR");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_PHONE) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_PHONE");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_POINTER) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_POINTER");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_PRIORITY_PHONE) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_PRIORITY_PHONE");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_SEARCH_BAR) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_SEARCH_BAR");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_SECURE_SYSTEM_OVERLAY) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_SECURE_SYSTEM_OVERLAY");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_STATUS_BAR) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_STATUS_BAR");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_STATUS_BAR_PANEL) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_STATUS_BAR_PANEL");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_STATUS_BAR_SUB_PANEL) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_STATUS_BAR_SUB_PANEL");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_SYSTEM_ALERT) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_SYSTEM_ALERT");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_SYSTEM_DIALOG) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_SYSTEM_DIALOG");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_SYSTEM_ERROR) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_SYSTEM_ERROR");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_SYSTEM_OVERLAY) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_SYSTEM_OVERLAY");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_TOAST) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_TOAST");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_VOLUME_OVERLAY) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_VOLUME_OVERLAY");
+							} else if(attrs.type == WindowManager.LayoutParams.TYPE_WALLPAPER) {
+								Log.v(TAG, "Window Type: " + "WindowManager.LayoutParams.TYPE_WALLPAPER");
+							}
+                            Log.v(TAG, "Setting window: " + win + " to rect: " + mWPPos);
+						}
+                        win.mFrame.set(mWPPos);
+                    }
+                }
+            }
+            /**
+             * Author: Onskreen
+             * Date : 26/12/2011
+             */
+            //setConfiguration(true);
+        }
+
+        /**
+         * Author: Onskreen
+         * Date: 09/02/2011
+         *
+         * Ensure that all surfaces with the given group id in this window panel are marked as
+         * resized.
+         */
+        private void resetSurfaces(List<Integer> groupIds, boolean destroy) {
+			for(int i=0; i<groupIds.size(); i++) {
+				int currGroupId = groupIds.get(i);
+				for (int n = 0; n < mAppTokens.size(); n++) {
+					AppWindowToken appToken = mAppTokens.get(n);
+					//Only updating surface of groups that were moved.
+					if (appToken.groupId == currGroupId) {
+						int N = appToken.allAppWindows.size();
+						for (int k = 0; k < N; k++) {
+							WindowState win = appToken.allAppWindows.get(k);
+							win.mWinAnimator.mSurfaceResized = true;
+							if(destroy) {
+								win.mWinAnimator.destroySurfaceLocked();
+								win.mWinAnimator.createSurfaceLocked();
+							}
+						}
+						break;
+					}
+				}
+			}
+        }
+
+
+        /**Configuration Methods**/
+        /**
+         * Author: Onskreen
+         * Date : 26/12/2011
+         *
+         * Computes the appropriate Configuration for this WindowPanel. If updateWinConfigs is true
+         * it also ensures that all WindowStates in this Panel have the appropriate configuration set.
+         *
+         * Uses the existing WMS.mCurConfiguration and mCornerstoneState.
+         *
+         * Returns true if the WP config was acutally out of sync and was updated. False otherwise
+         */
+		public boolean updateConfiguration(boolean updateWinConfigs) {
+			Configuration newConfig;
+			if(isCornerstonePanel() && mCornerstonePanelIndex == 0) {
+				newConfig = computeWindowPanelConfiguration(WP_Panel.CS_APP_0);
+			} else if(isCornerstonePanel() && mCornerstonePanelIndex == 1) {
+				newConfig = computeWindowPanelConfiguration(WP_Panel.CS_APP_1);
+			} else if(isMainPanel()) {
+				newConfig = computeWindowPanelConfiguration(WP_Panel.MAIN_PANEL);
+			} else if(isCornerstone()) {
+				newConfig = computeWindowPanelConfiguration(WP_Panel.CORNERSTONE);
+			} else {
+				if(DEBUG_WP_CONFIG) {
+					Slog.e(TAG, "ERROR: Unable to determine panel of WindowPanel" );
+				}
+				newConfig = computeWindowPanelConfiguration(WP_Panel.DISPLAY);
+			}
+
+			//No Changes in Config
+			if(mWPConfig != null && mWPConfig.diff(newConfig) == 0
+					&& !updateWinConfigs) {									//When updating configs of WindowStates do regardless if this config is new tothe WindowPanel
+				return false;
+			} else {
+				mWPConfig = newConfig;
+			}
+
+			if(updateWinConfigs) {
+				for (int i = 0; i < mAppTokens.size(); i++) {
+					AppWindowToken appToken = mAppTokens.get(i);
+					if(contains(appToken.groupId)) {
+						int N = appToken.allAppWindows.size();
+						for (int k = 0; k < N; k++) {
+							WindowState win = appToken.allAppWindows.get(k);
+							win.mConfiguration = new Configuration(mWPConfig);
+						}
+					}
+				}
+			}
+			return true;
+		}
+
+        /**
+         * Author: Onskreen
+         * Date : 26/12/2011
+         *
+         */
+		public Configuration getConfiguration() {
+			return mWPConfig;
+		}
+
+	    /**Utility Methods**/
+		public String getName() {
+			return name;
+		}
+
+		public void setName(String name) {
+			this.name = name;
+		}
+
+        public void addGroupId(int id) {
+            if(!mGroupIds.contains(id)) {
+                mGroupIds.add(new Integer(id));
+                if (DEBUG_WP_GROUPING)
+                    Log.v(TAG, "Adding Group: " + id + " to " + this);
+            }
+        }
+
+        public void removeGroupId(int id) {
+            if (DEBUG_WP_GROUPING)
+                Log.v(TAG, "Removing Group: " + id + " from " + this);
+            mGroupIds.remove(new Integer(id));
+        }
+
+        public Rect getPos() {
+            return mWPPos;
+        }
+
+		public void setInMainPanel(boolean mMainPanel) {
+			this.mMainPanel = mMainPanel;
+		}
+
+		/**Z-Order**/
+        /**
+         * Author: Onskreen
+         * Date: 11/03/2011
+         *
+         * Bring all the tokens of the WindowPanel to the front of the Z-Order. This does not
+         * manage the Focus, that is the caller's responsibility to manage.
+         */
+		public boolean moveWindowPanelToFront() {
+			if(DEBUG_REORDER || DEBUG_CORNERSTONE) {
+				Log.v(TAG, "Moving Window Panel: " + this + " to top of z-order");
+			}
+
+			//Cases that we don't want to take action:
+			if(isCornerstone()) {
+				//Don't bring the cornerstone itself to the top
+				if(DEBUG_REORDER || DEBUG_CORNERSTONE) {
+					Log.v(TAG, "WP is Cornerstone. Do not move to the top.");
+				}
+				return false;
+			}
+
+			//Don't act if WP is already at the top. Shouldn't happen ever, as there
+			//is a test for this in ViewRoot before this method is triggered.
+
+			//Find topmost appwindow token
+			int topMostGroupId = -1;
+			for(int i=mWindows.size()-1; i>=0; i--) {
+				WindowState win = mWindows.get(i);
+				if(win.mAppToken!=null) {
+					topMostGroupId = win.mAppToken.groupId;
+					break;
+				}
+			}
+			if(contains(topMostGroupId)) {
+				if(DEBUG_REORDER || DEBUG_CORNERSTONE) {
+					Log.v(TAG, "WP is already at top. Nothing to do.");
+				}
+				return false;
+			}
+
+            /**
+             * Manually making the transition from within the WMS instead of calling an
+             * AMS method because:
+             * - There is WP specific logic that has be managed (getting all the tokens
+             * in a WP, not just one task/group). So would require a new IActivityManager
+             * method.
+             * - ActivityStack containing this WindowPanel already has the tokens positioned
+             * at the top so triggering the ActivityStack.moveTasktoFrontLocked() wouldn't
+             * actually do anything. So would require additional changes there. So keeping
+             * changes localized here.
+             */
+			//Set up so that there is no transition planned and window is moved immediately
+			final long origId = Binder.clearCallingIdentity();
+
+			//Get all the tokens in the WP to move
+			ArrayList<IBinder> tokensToMove = new ArrayList<IBinder>();
+			tokensToMove = getAllTokens();
+
+            /**
+             * The value of this is set explictitly instead of using prepareAppTransition()
+             * because when this is being used during panel swapping the flag doesn't get
+             * set the way we want it to, to force the windows to be moved immediately.
+             */
+			mNextAppTransition = WindowManagerPolicy.TRANSIT_UNSET;
+			moveAppTokensToTop(tokensToMove);
+			Binder.restoreCallingIdentity(origId);
+			return true;
+		}
+
+		public void setIsCornerstonePanel(boolean isCornerstonePanel) {
+			this.mCornerstonePanel = isCornerstonePanel;
+		}
+
+		public String toString() {
+			StringBuilder sb = new StringBuilder();
+			if(isMainPanel()) {
+				sb.append("Main - ");
+			} else if(isCornerstone()) {
+				sb.append("Cornerstone - ");
+			} else if(isCornerstonePanel()) {
+				sb.append("Cornerstone Panel [Index: " + mCornerstonePanelIndex + "]) - ");
+			}
+			sb.append("Window Panel (" + name + ") [");
+			sb.append(Integer.toHexString(System.identityHashCode(this)));
+			sb.append("] Groups: [");
+			for (int i = 0; i < mGroupIds.size(); i++) {
+				if (i > 0)
+					sb.append(", ");
+				sb.append(mGroupIds.get(i));
+			}
+			sb.append("] at Pos: ");
+			sb.append(mWPPos);
+			sb.append(" Configuration[" + mWPConfig + "]");
+			return sb.toString();
+		}
+	}
 
     // -------------------------------------------------------------
     // Async Handler
@@ -7942,6 +10461,18 @@ public class WindowManagerService extends IWindowManager.Stub
                         return true;
                     }
                 }
+
+                /**
+                 * Author: Onskreen
+                 * Date: 14/02/2012
+                 *
+                 * Shows hidden dialog window(s) when user opens
+                 * cornerstone after closing it.
+                 */
+				case SHOW_HIDDEN_DIALOG_WINDOWS: {
+					handleCSPanelDialogWindows(mCornerstoneState);
+					break;
+				}
             }
 
             // Okay, how about this...  what is the current focus?
@@ -8240,6 +10771,14 @@ public class WindowManagerService extends IWindowManager.Stub
             Slog.w(TAG, "Final window list:");
             dumpWindowsLocked();
         }
+        /**
+         * Author: Onskreen
+         * Date: 27/01/2011
+         *
+         * Added to inspect window state after rebuild.
+         *
+         */
+        if (DEBUG_WINDOW_MOVEMENT) logWMSState(true, true);
     }
 
     private final void assignLayersLocked(WindowList windows) {
@@ -9567,6 +12106,46 @@ public class WindowManagerService extends IWindowManager.Stub
                         "performLayout: App token exiting now removed" + token);
                 mAppTokens.remove(token);
                 mAnimatingAppTokens.remove(token);
+
+                /**
+                 * Author: Onskreen
+                 * Date: 24/01/2011
+                 *
+                 * When the AppWindowToken is removed,
+                 * it's reference from it's WindowPanel must be wiped
+                 * also if there are no remaining AppWindowTokens with the same
+                 * group. At this point the Windows associated with this
+                 * AppWindowTOken should have already been removed.
+                 */
+                boolean doTokensWithIdStillExist = false;
+                if (DEBUG_WP_GROUPING)
+                    Log.v(TAG, "Evaluating if Token with Group ID:" + token.groupId
+                            + " has remaining");
+                for (int i1 = 0; i1 < mAppTokens.size(); i1++) {
+                    AppWindowToken currAppWindowToken = mAppTokens.get(i1);
+                    if (token != currAppWindowToken && token.groupId == currAppWindowToken.groupId) {
+                        if (DEBUG_WP_GROUPING)
+                            Log.v(TAG, "Other Token with Group ID:" + token.groupId + " found");
+                        doTokensWithIdStillExist = true;
+                        break;
+                    }
+                }
+                // No other tokens with this groupid exist, remove it from it's
+                // window frame
+                if (!doTokensWithIdStillExist) {
+                    for (int i1 = 0; i1 < mWindowPanels.size(); i1++) {
+                        WindowPanel wp = mWindowPanels.get(i1);
+                        // Found the Window Panel containing this token's group
+                        if (wp.contains(token.groupId)) {
+                            wp.removeGroupId(token.groupId);
+                            if (wp.isWindowPanelEmpty()) {
+                                if (DEBUG_WP_GROUPING)
+                                    Log.v(TAG, "WP: " + wp + " now empty, removing...");
+                                mWindowPanels.remove(wp);
+                            }
+                        }
+                    }
+                }
                 mExitingAppTokens.remove(i);
             }
         }
