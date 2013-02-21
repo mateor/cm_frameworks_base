@@ -22,6 +22,7 @@ import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import com.android.internal.app.HeavyWeightSwitcherActivity;
 import com.android.internal.os.BatteryStatsImpl;
 import com.android.server.am.ActivityManagerService.PendingActivityLaunch;
+import com.android.server.wm.WindowManagerService;
 import com.android.server.power.PowerManagerService;
 
 import android.app.Activity;
@@ -1162,6 +1163,103 @@ final class ActivityStack {
         }
     }
 
+    /**
+     * Author: Onskreen
+     * Date: 03/05/2011
+     *
+     * Trying to pause specific activity with no side effects. This is used in cases where the
+     * resuming/pausing of activities is not in a one to one relationship as the ActivityStack
+     * originally expected. It is basically a replica of startPausingLocked with
+     * any side effects or assumptions about which activity will be paused removed.
+     *
+     * This will fail in cases where multiple Activities are to be paused at once. In that case,
+     * the second call to this method will not execute because the previous one will still
+     * be pausing. Haven't found test case for that yet, but pretty sure it exists
+     */
+    public final void startSpecificPausingLocked(ActivityRecord toPause, boolean userLeaving, boolean uiSleeping) {
+        if (mPausingActivity != null) {
+            RuntimeException e = new RuntimeException();
+            Slog.e(TAG, "Trying to pause when pause is already pending for "
+                  + mPausingActivity, e);
+        }
+
+        if (DEBUG_PAUSE) Slog.v(TAG, "Start pausing: " + toPause);
+        mPausingActivity = toPause;
+        mLastPausedActivity = toPause;
+        toPause.state = ActivityState.PAUSING;
+        toPause.task.touchActiveTime();
+
+        mService.updateCpuStats();
+
+        if (toPause.app != null && toPause.app.thread != null) {
+            if (DEBUG_PAUSE) Slog.v(TAG, "Enqueueing pending pause: " + toPause);
+            try {
+                EventLog.writeEvent(EventLogTags.AM_PAUSE_ACTIVITY,
+                        System.identityHashCode(toPause),
+                        toPause.shortComponentName);
+                toPause.app.thread.schedulePauseActivity(toPause.appToken, toPause.finishing, userLeaving,
+					toPause.configChangeFlags);
+                if (mMainStack || mCornerstoneStack || mCornerstonePanelStack) {
+                    /**
+                     * Author: Onskreen
+                     * Date: 23/02/2011
+                     *
+                     * Security Exception Warning. Triggered by AMS.setCornerstoneState() which must have cleared
+                     * it's identity before executing.
+                     */
+                    mService.updateUsageStats(toPause, false);
+                }
+            } catch (Exception e) {
+                // Ignore exception, if process died other code will cleanup.
+                Slog.w(TAG, "Exception thrown during pause", e);
+                mPausingActivity = null;
+                mLastPausedActivity = null;
+            }
+        } else {
+            mPausingActivity = null;
+            mLastPausedActivity = null;
+        }
+
+        // If we are not going to sleep, we want to ensure the device is
+        // awake until the next activity is started.
+        if (!mService.mSleeping && !mService.mShuttingDown) {
+            /**
+             * Author: Onskreen
+             * Date: 23/02/2011
+             *
+             * Security Exception Warning. Triggered by AMS.setCornerstoneState() which must have cleared
+             * it's identity before executing.
+             */
+            mLaunchingActivity.acquire();
+            if (!mHandler.hasMessages(LAUNCH_TIMEOUT_MSG)) {
+                // To be safe, don't allow the wake lock to be held for too long.
+                Message msg = mHandler.obtainMessage(LAUNCH_TIMEOUT_MSG);
+                mHandler.sendMessageDelayed(msg, LAUNCH_TIMEOUT);
+            }
+        }
+
+
+        if (mPausingActivity != null) {
+            // Have the window manager pause its key dispatching until the new
+            // activity has started.  If we're pausing the activity just because
+            // the screen is being turned off and the UI is sleeping, don't interrupt
+            // key dispatch; the same activity will pick it up again on wakeup.
+            if (!uiSleeping) {
+                toPause.pauseKeyDispatchingLocked();
+            } else {
+                if (DEBUG_PAUSE) Slog.v(TAG, "Key dispatch not paused for screen off");
+            }
+
+            // Schedule a pause timeout in case the app doesn't respond.
+            // We don't give it much time because this directly impacts the
+            // responsiveness seen by the user.
+            Message msg = mHandler.obtainMessage(PAUSE_TIMEOUT_MSG);
+            msg.obj = toPause;
+            mHandler.sendMessageDelayed(msg, PAUSE_TIMEOUT);
+            if (DEBUG_PAUSE) Slog.v(TAG, "Waiting for pause to complete...");
+        }
+    }
+
     final void activityPaused(IBinder token, boolean timeout) {
         if (DEBUG_PAUSE) Slog.v(
             TAG, "Activity paused: token=" + token + ", timeout=" + timeout);
@@ -1242,7 +1340,21 @@ final class ActivityStack {
         if (prev != null) {
             if (prev.finishing) {
                 if (DEBUG_PAUSE) Slog.v(TAG, "Executing finish of activity: " + prev);
-                prev = finishCurrentActivityLocked(prev, FINISH_AFTER_VISIBLE, false);
+                /*
+                 * Onscreen-Cornerstone
+                 * Version: 0.84
+                 * Date: 08.11.2011
+                 *
+                 * When cornerstone is exiting, we must kill the activities in the specific stack.
+                 * As we don't want to resume any previous activity in the stack, we should call the
+                 * finishCurrentActivityLocked with FINISH_IMMEDIATELY mode.
+                 */
+                 if(mService.mActivityStackExiting) {
+                     mStackPaused = false;
+                     prev = finishCurrentActivityLocked(prev, FINISH_IMMEDIATELY);
+                 } else {                
+				prev = finishCurrentActivityLocked(prev, FINISH_AFTER_VISIBLE, false);
+				 }
             } else if (prev.app != null) {
                 if (DEBUG_PAUSE) Slog.v(TAG, "Enqueueing pending stop: " + prev);
                 if (prev.waitingVisible) {
@@ -1344,11 +1456,11 @@ final class ActivityStack {
             mHandler.sendMessage(msg);
         }
 
-        if (mMainStack) {
+        if (mMainStack || mCornerstoneStack || mCornerstonePanelStack) {
             mService.reportResumedActivityLocked(next);
         }
 
-        if (mMainStack) {
+        if (mMainStack || mCornerstoneStack || mCornerstonePanelStack) {
             mService.setFocusedActivityLocked(next);
         }
         next.resumeKeyDispatchingLocked();
@@ -1550,8 +1662,38 @@ final class ActivityStack {
 
         mPm.cpuBoost(1500000);
 
+        /**
+         * Author: Onskreen
+         * Date: 23/02/2011
+         *
+         * If the entire stack is paused, ignore requests to resume top activity. Centralizing
+         * this logic allows less changes throughout the class while enabling us to stop all actvities
+         */
+        if(mStackPaused) {
+            if (DEBUG_SWITCH) {
+                Log.v(TAG, "Stack: " + mStackName);
+                Log.v(TAG, "\tIgnoring request to resume top activity as stack is paused");
+              }
+            return false;
+        }
+
+
+        /**
+         * Author: Onskreen
+         * Date: 31/01/2011
+         *
+         * Determining task to be resumed based on panel. In cornerstone, the task to be
+         * resumed may or may not be the top activity and the activity to be paused may or may not
+         * be mResumedActivity. This is because tasks below the bottom one may be the one we
+         * are dealing with.
+         */
+        ActivityRecord next = null;
+        if(mMainStack || mCornerstonePanelStack || mCornerstoneStack) {
+
+
         // Find the first activity that is not finishing.
-        ActivityRecord next = topRunningActivityLocked(null);
+            next = topRunningActivityLocked(null);
+        }
 
         // Remember how we'll process this pause/resume situation, and ensure
         // that the state is reset however we wind up proceeding.
@@ -1564,6 +1706,45 @@ final class ActivityStack {
             if (mMainStack) {
                 ActivityOptions.abort(options);
                 return mService.startHomeActivityLocked(mCurrentUser);
+            /**
+             * Author: Onskreen
+             * Date: 16/07/2011
+             *
+             * When cornerstone is exiting, we shouldn't allow launching
+             * Cornerstone Launcher to start in either of panels.
+             */
+            } else if(mCornerstonePanelStack && !mService.mActivityStackExiting) {
+                /**
+                 * Author: Onskreen
+                 * Date: 03/05/2011
+                 *
+                 * No more activities, startup the Cornerstone Launcher
+                 */
+                if(DEBUG_SWITCH) {
+                    Log.w(TAG, "No activity records in: " + mStackName);
+                    Log.w(TAG, "Starting Cornerstone Launcher in this Panel");
+                }
+                return mService.startCornerstoneLauncherLocked(mCornerstonePanelIndex);
+            } else if(mCornerstoneStack) {
+                /**
+                 * Author: Onskreen
+                 * Date: 03/05/2011
+                 *
+                 * If the CS itself is not resumed something bad happened
+                 */
+                if(DEBUG_SWITCH) {
+                    Log.e(TAG, "No activity records in: " + mStackName);
+                }
+                return false;
+            /**
+             * Author: Onskreen
+             * Date: 16/07/2011
+             *
+             * Just return false when cornerstone is exiting and resumeTopActivityLocked
+             * method getting triggered by other methods.
+             */
+            } else {
+                return false;            
             }
         }
 
@@ -1974,8 +2155,19 @@ final class ActivityStack {
                         }
                         mHistory.add(addPos, r);
                         r.putInHistory();
+                        //mService.mWindowManager.addAppToken(addPos, r.appToken, r.task.taskId,
+                        //        r.info.screenOrientation, r.fullscreen);
+                        /**
+                         * Author: Onskreen
+                         * Date: 24/01/2011
+                         *
+                         * Udpated to use new overloaded version
+                         */
                         mService.mWindowManager.addAppToken(addPos, r.userId, r.appToken,
                                 r.task.taskId, r.info.screenOrientation, r.fullscreen,
+                                mMainStack,
+                                mService.isCornerstone(r),
+                                mCornerstonePanelIndex,
                                 (r.info.flags & ActivityInfo.FLAG_SHOW_ON_LOCK_SCREEN) != 0);
                         if (VALIDATE_TOKENS) {
                             validateAppTokensLocked();
@@ -2039,8 +2231,19 @@ final class ActivityStack {
                 mNoAnimActivities.remove(r);
             }
             r.updateOptionsLocked(options);
+            //mService.mWindowManager.addAppToken(
+            //        addPos, r.appToken, r.task.taskId, r.info.screenOrientation, r.fullscreen);
+			/**
+             * Author: Onskreen
+             * Date: 24/01/2011
+             *
+             * Updated to use new overloaded version
+             */
             mService.mWindowManager.addAppToken(addPos, r.userId, r.appToken,
                     r.task.taskId, r.info.screenOrientation, r.fullscreen,
+                    mMainStack,
+                    mService.isCornerstone(r),
+                    mCornerstonePanelIndex,
                     (r.info.flags & ActivityInfo.FLAG_SHOW_ON_LOCK_SCREEN) != 0);
             boolean doShow = true;
             if (newTask) {
@@ -2078,8 +2281,19 @@ final class ActivityStack {
         } else {
             // If this is the first activity, don't do any fancy animations,
             // because there is nothing for it to animate on top of.
+            //mService.mWindowManager.addAppToken(addPos, r.appToken, r.task.taskId,
+            //        r.info.screenOrientation, r.fullscreen);
+            /**
+             * Author: Onskreen
+             * Date: 24/01/2011
+             *
+             * Updated to use new overloaded version
+             */
+             //Log.i(TAG, "First Activity in the stack");
             mService.mWindowManager.addAppToken(addPos, r.userId, r.appToken,
-                    r.task.taskId, r.info.screenOrientation, r.fullscreen,
+                    r.task.taskId, r.info.screenOrientation, r.fullscreen, mMainStack,
+                    mService.isCornerstone(r),
+                    mCornerstonePanelIndex,
                     (r.info.flags & ActivityInfo.FLAG_SHOW_ON_LOCK_SCREEN) != 0);
             ActivityOptions.abort(options);
         }
@@ -3258,7 +3472,19 @@ final class ActivityStack {
         // Collect information about the target of the Intent.
         ActivityInfo aInfo = resolveActivity(intent, resolvedType, startFlags,
                 profileFile, profileFd, userId);
-
+        /**
+         * Author: Onskreen
+         * Date: 07/01/2012
+         *
+         * Check if Cornerstone is ok with this activity launching. Inform the
+         * caller appropriately if we can't proceed.
+         */
+        boolean okToProceed = mService.isActivityPermittedToStart(aInfo, this);
+        if(!okToProceed) {
+            //This isn't a success, but is not a failure of the calling activity,
+            // so return success and let things proceed.
+            return ActivityManager.START_SUCCESS;
+        }
         synchronized (mService) {
             int callingPid;
             if (callingUid >= 0) {
@@ -3831,7 +4057,45 @@ final class ActivityStack {
             return false;
         }
         ActivityRecord r = mHistory.get(index);
+        // Is this the last activity left?
+        boolean lastActivity = true;
+        for (int i=mHistory.size()-1; i>=0; i--) {
+            ActivityRecord p = mHistory.get(i);
+            if (!p.finishing && p != r) {
+                lastActivity = false;
+                break;
+            }
+        }
 
+         // If this is the last activity, but it is the home activity, then
+        // just don't finish it.
+        if (lastActivity) {
+            /**
+             * Author: Onskreen
+             * Date: 04/02/2011
+             *
+             * In the case of the cornerstone panel, the back key should not be able to finish the last
+             * activity in the last task or there would be no activities visible behind it.
+             */
+            if(!mMainStack && !mService.mActivityStackExiting) {
+                return false;
+            } else {
+               /**
+                * Author: Onskreen
+                * Date: 29/12/2011
+                *
+                * Identifies the HOME app by checking the category
+                * as well as matching the AMS.mHomeProcess. Any HOME
+                * app must pass this test else it's not considered as
+                * HOME app and should be killed immediately as requested
+                * by the framework.
+                */
+               if (r.intent.hasCategory(Intent.CATEGORY_HOME)
+                       && r.app != mService.mHomeProcess) {
+                    return false;
+               }
+            }
+        }
         finishActivityLocked(r, index, resultCode, resultData, reason, oomAdj);
         return true;
     }
@@ -3991,8 +4255,22 @@ final class ActivityStack {
             // If the activity is PAUSING, we will complete the finish once
             // it is done pausing; else we can just directly finish it here.
             if (DEBUG_PAUSE) Slog.v(TAG, "Finish not pausing: " + r);
-            return finishCurrentActivityLocked(r, index,
-                    FINISH_AFTER_PAUSE, oomAdj) == null;
+            +            /*
+             * Onscreen-Cornerstone
+             * Date: 08.11.2011
+             *
+             * When cornerstone is exiting, we must kill the activities in the specific stack.
+             * As we don't want to resume any previous activity in the stack, we should call the
+             * finishCurrentActivityLocked with FINISH_IMMEDIATELY mode.
+             */
+            boolean finished = false;
+            if(mService.mActivityStackExiting) {
+                mStackPaused = false;
+                finished = finishCurrentActivityLocked(r, index, FINISH_IMMEDIATELY) == null;
+            } else {
+                finished = finishCurrentActivityLocked(r, index, FINISH_AFTER_PAUSE) == null;
+            }
+            return finished;
         } else {
             if (DEBUG_PAUSE) Slog.v(TAG, "Finish waiting for pause of: " + r);
         }
