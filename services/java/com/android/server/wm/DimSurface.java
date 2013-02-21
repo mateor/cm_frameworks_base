@@ -32,6 +32,14 @@ class DimSurface {
     int mLayer = -1;
     int mLastDimWidth, mLastDimHeight;
 
+    /**
+     * Author: Onskreen
+     * Date: 21/12/2011
+     *
+     * Setting DimSurface position variables
+     */
+    int mDimX = 0, mDimY = 0;
+
     DimSurface(SurfaceSession session, final int layerStack) {
         try {
             if (WindowManagerService.DEBUG_SURFACE_TRACE) {
