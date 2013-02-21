@@ -90,6 +90,8 @@ import android.content.pm.ServiceInfo;
 import android.content.res.CompatibilityInfo;
 import android.content.res.Configuration;
 import android.content.res.CustomTheme;
+import android.content.res.Resources;
+import android.content.res.XmlResourceParser;
 import android.graphics.Bitmap;
 import android.net.Proxy;
 import android.net.ProxyProperties;
@@ -981,6 +983,15 @@ public final class ActivityManagerService extends ActivityManagerNative
     static final int REPORT_USER_SWITCH_MSG = 34;
     static final int CONTINUE_USER_SWITCH_MSG = 35;
     static final int USER_SWITCH_TIMEOUT_MSG = 36;
+    /**
+     * Author: Onskreen
+     * Date: 10/06/2011
+     *
+     * Constant to show the alert dialog when user tries to launch
+     * the multiple instances of same app (for ex, Gallery) to avoid
+     * any unwanted crashes.
+     */
+    static final int SHOW_APP_ERROR_MSG = 34;
 
     static final int FIRST_ACTIVITY_STACK_MSG = 100;
     static final int FIRST_BROADCAST_QUEUE_MSG = 200;
@@ -2935,7 +2946,113 @@ public final class ActivityManagerService extends ActivityManagerNative
         enforceNotIsolatedCaller("startActivity");
         userId = handleIncomingUser(Binder.getCallingPid(), Binder.getCallingUid(), userId,
                 false, true, "startActivity", null);
-        return mMainStack.startActivityMayWait(caller, -1, intent, resolvedType,
+        /**
+         * Author: Onskreen
+         * Date: 12/01/2011
+         *
+         * Send to appropriate stack
+         */
+        int stack = getActivityStack(intent, resultTo);
+        ActivityStack targetStack = null;
+        //Cornerstone Panel
+        if(stack >= 0) {
+			if(stack < mCornerstonePanelStacks.size()) {
+				targetStack = mCornerstonePanelStacks.get(stack);
+
+                /**
+                 * Author: Onskreen
+                 * Date: 08/03/2011
+                 *
+                 * Notifies CSPanel app to change the cs app header controls appropriately
+                 */
+				ComponentName cp = intent.getComponent();
+				if(cp != null){
+					String pkg = cp.getPackageName();
+					if(pkg != null){
+						broadcastCornerstonePanelFocusChanged(pkg, true, stack);
+					}
+				}
+			} else {
+				Log.e(TAG, "Found in Non-Existent Stack");
+				return -1;
+			}
+        } else if(stack == CORNERSTONE_STACK) {
+			//System.out.println("Found in Cornerstone Stack");
+			//Cornerstone
+			targetStack = mCornerstoneStack;
+			mActivityStackExiting = false;
+			mWindowManager.setCornerstoneState(WindowManagerService.Cornerstone_State.RUNNING_OPEN);
+            /**
+             * Author: Onskreen
+             * Date: 07/01/2012
+             *
+             * Cornerstone running will require a config change of Main Panel
+             */
+            final long origId = Binder.clearCallingIdentity();
+            if(DEBUG_CONFIGURATION) {
+				Slog.i(TAG, "State: Cornerstone Launched\tAction: Config Main Panel");
+            }
+            /**
+             * Author: Onskreen
+             * Date: 07/01/2012
+             *
+             * we might not want to call for a reconfig until after the activity is started?
+             */
+            forceConfigurationLocked(mMainStack, WindowManagerService.Cornerstone_State.RUNNING_OPEN);
+            Binder.restoreCallingIdentity(origId);
+        } else if(stack == MAIN_STACK || stack == NO_STACK) {
+			//System.out.println("Found in Main Stack");
+			//Main stack or Unknown
+            targetStack = mMainStack;
+        }
+
+        /**
+         * Author: Onskreen
+         * Date: 16/03/2011
+         *
+         * Bring the top most main panel activity to front on long press HOME key
+         */
+        if(targetStack == mMainStack && resultTo == null){
+            ActivityRecord r = mMainStack.topRunningActivityLocked(null);
+            if(r !=null) {
+                ComponentName cp = intent.getComponent();
+                if(cp != null){
+                    String pkg = cp.getPackageName();
+                    if(pkg != null){
+                        if(pkg.equals(r.packageName)){
+                            mWindowManager.handleFocusChange(r.appToken.asBinder());
+                            return ActivityManager.START_TASK_TO_FRONT;
+                        } else {
+                            mWindowManager.handleFocusChange(r.appToken.asBinder());
+                        }
+                    }
+                }
+            }
+        }
+
+        /**
+         * Author: Onskreen
+         * Date: 09/08/2011
+         *
+         * Check for the multiple instances of CSPanel app in cornerstone stack.
+         * If found the second instance, then don't start the new instance just
+         * return it.
+         */
+        if(targetStack == mCornerstoneStack && resultTo != null){
+            ActivityRecord r = mCornerstoneStack.topRunningActivityLocked(null);
+            if(r !=null) {
+                ComponentName cp = intent.getComponent();
+                if(cp != null){
+                    String pkg = cp.getPackageName();
+                    if(pkg != null){
+                        if(pkg.equals(r.packageName)){
+                            return ActivityManager.START_TASK_TO_FRONT;
+                        }
+                    }
+                }
+            }
+        }
+        return targetStack.startActivityMayWait(caller, -1, intent, resolvedType,
                 resultTo, resultWho, requestCode, startFlags, profileFile, profileFd,
                 null, null, options, userId);
     }
@@ -3173,7 +3290,29 @@ public final class ActivityManagerService extends ActivityManagerNative
         enforceNotIsolatedCaller("startActivities");
         userId = handleIncomingUser(Binder.getCallingPid(), Binder.getCallingUid(), userId,
                 false, true, "startActivity", null);
-        int ret = mMainStack.startActivities(caller, -1, intents, resolvedTypes, resultTo,
+          /**
+           * Author: Onskreen
+           * Date: 12/01/2011
+           *
+           */
+            int stack = getActivityStack(intents[0], resultTo);
+            ActivityStack targetStack = null;
+            //Cornerstone Panel
+            if(stack >= 0) {
+				if(stack < mCornerstonePanelStacks.size()) {
+					targetStack = mCornerstonePanelStacks.get(stack);
+				} else {
+					Log.e(TAG, "Found in Non-Existent Stack");
+					return -1;
+				}
+            } else if(stack == CORNERSTONE_STACK) {
+				//Cornerstone
+				targetStack = mCornerstoneStack;
+            } else if(stack == MAIN_STACK || stack == NO_STACK) {
+				//Main stack or Unknown
+                targetStack = mMainStack;
+            }
+        int ret = targetStack.startActivities(caller, -1, intents, resolvedTypes, resultTo,
                 options, userId);
         return ret;
     }
@@ -3184,7 +3323,29 @@ public final class ActivityManagerService extends ActivityManagerNative
 
         userId = handleIncomingUser(Binder.getCallingPid(), Binder.getCallingUid(), userId,
                 false, true, "startActivityInPackage", null);
-        int ret = mMainStack.startActivities(null, uid, intents, resolvedTypes, resultTo,
+        /**
+         * Author: Onskreen
+         * Date: 12/01/2011
+         *
+         */
+        int stack = getActivityStack(intents[0], resultTo);
+        ActivityStack targetStack = null;
+        //Cornerstone Panel
+        if(stack >= 0) {
+			if(stack < mCornerstonePanelStacks.size()) {
+				targetStack = mCornerstonePanelStacks.get(stack);
+			} else {
+				Log.e(TAG, "Found in Non-Existent Stack");
+				return -1;
+			}
+        } else if(stack == CORNERSTONE_STACK) {
+			//Cornerstone
+			targetStack = mCornerstoneStack;
+        } else if(stack == MAIN_STACK || stack == NO_STACK) {
+			//Main stack or Unknown
+            targetStack = mMainStack;
+        }
+        int ret = targetStack.startActivities(null, uid, intents, resolvedTypes, resultTo,
                 options, userId);
         return ret;
     }
@@ -3348,8 +3509,43 @@ public final class ActivityManagerService extends ActivityManagerNative
                 }
             }
             final long origId = Binder.clearCallingIdentity();
-            boolean res = mMainStack.requestFinishActivityLocked(token, resultCode,
+            /**
+             * Author: Onskreen
+             * Date: 16/07/2011
+             *
+             * If cornerstone stack found, then kill the CSPanel and cornerstone panel
+             * activities and inform the WindowManagerService to set the layout as per
+             * layout config.
+             */
+            boolean res;
+            if(targetStack == mCornerstoneStack) {
+                mActivityStackExiting = true;
+                for(int i = 0; i < mCornerstonePanelStacks.size(); i++){
+                    targetStack = mCornerstonePanelStacks.get(i);
+                    for (int j = targetStack.mHistory.size()-1; j >= 0; j--) {
+                        ActivityRecord r = (ActivityRecord)targetStack.mHistory.get(j);
+                        targetStack.requestFinishActivityLocked(r.appToken.asBinder(), 0, null, "app-request");
+                    }
+                }
+                res = mCornerstoneStack.requestFinishActivityLocked(token, resultCode,
+                            resultData, "app-request");
+                mWindowManager.setCornerstoneState(WindowManagerService.Cornerstone_State.TERMINATED);
+
+                /**
+                 * Author: Onskreen
+                 * Date: 26/12/2011
+                 *
+                 * Trigger the Main Stack to config itself.
+                 */
+                if(DEBUG_CONFIGURATION) {
+                    Slog.i(TAG, "State: Cornerstone Exit\tAction: Config Main Panel");
+                }
+                forceConfigurationLocked(mMainStack, WindowManagerService.Cornerstone_State.TERMINATED);
+            } else {
+                res = targetStack.requestFinishActivityLocked(token, resultCode,
                     resultData, "app-request", true);
+            }
+
             Binder.restoreCallingIdentity(origId);
             return res;
         }
@@ -3376,9 +3572,31 @@ public final class ActivityManagerService extends ActivityManagerNative
             for (int i=0; i<activities.size(); i++) {
                 ActivityRecord r = activities.get(i);
                 if (!r.finishing) {
-                    int index = mMainStack.indexOfTokenLocked(r.appToken);
+                    /**
+                     * Author: Onskreen
+                     * Date: 27/01/2011
+                     *
+                     */
+                    int stack = getActivityStack(r);
+                    ActivityStack targetStack = null;
+                    //Cornerstone Panel
+                    if(stack >= 0) {
+						if(stack < mCornerstonePanelStacks.size()) {
+							targetStack = mCornerstonePanelStacks.get(stack);
+						} else {
+							Log.e(TAG, "Found in Non-Existent Stack");
+							return;
+						}
+                    } else if(stack == CORNERSTONE_STACK) {
+						//Cornerstone
+						targetStack = mCornerstoneStack;
+                    } else if(stack == MAIN_STACK || stack == NO_STACK) {
+						//Main stack or Unknown
+                        targetStack = mMainStack;
+                    }
+                    int index = targetStack.indexOfTokenLocked(r.appToken);
                     if (index >= 0) {
-                        mMainStack.finishActivityLocked(r, index, Activity.RESULT_CANCELED,
+                        targetStack.finishActivityLocked(r, index, Activity.RESULT_CANCELED,
                                 null, "finish-heavy", true);
                     }
                 }
@@ -3641,17 +3859,16 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
 
         // Just in case...
-        if (mMainStack.mPausingActivity != null && mMainStack.mPausingActivity.app == app) {
-            if (DEBUG_PAUSE || DEBUG_CLEANUP) Slog.v(TAG,
-                    "App died while pausing: " + mMainStack.mPausingActivity);
-            mMainStack.mPausingActivity = null;
+        if (currStack.mPausingActivity != null && currStack.mPausingActivity.app == app) {
+            if (DEBUG_PAUSE) Slog.v(TAG, "App died while pausing: " +currStack.mPausingActivity);
+            currStack.mPausingActivity = null;
         }
-        if (mMainStack.mLastPausedActivity != null && mMainStack.mLastPausedActivity.app == app) {
-            mMainStack.mLastPausedActivity = null;
+        if (currStack.mLastPausedActivity != null && currStack.mLastPausedActivity.app == app) {
+            currStack.mLastPausedActivity = null;
         }
 
         // Remove this application's activities from active lists.
-        boolean hasVisibleActivities = mMainStack.removeHistoryRecordsForAppLocked(app);
+        currStack.removeHistoryRecordsForAppLocked(app);
 
         app.activities.clear();
         
@@ -4381,6 +4598,19 @@ public final class ActivityManagerService extends ActivityManagerNative
             }
         }
 
+            /**
+             * Author: Onskreen
+             * Date: 27/01/2011
+             *
+             * Replicating logic for cornerstone stack
+             */
+            for (int i=mCornerstoneStack.mHistory.size()-1; i>=0; i--) {
+                ActivityRecord r = (ActivityRecord)mCornerstoneStack.mHistory.get(i);
+                if ((r.info.flags&ActivityInfo.FLAG_FINISH_ON_CLOSE_SYSTEM_DIALOGS) != 0) {
+                    r.stack.finishActivityLocked(r, i,
+                            Activity.RESULT_CANCELED, null, "close-sys");
+                }
+            }
         broadcastIntentLocked(null, null, intent, null,
                 null, 0, null, null, null, false, false, -1,
                 Process.SYSTEM_UID, UserHandle.USER_ALL);
@@ -4616,6 +4846,27 @@ public final class ActivityManagerService extends ActivityManagerNative
                         null, "force-stop", true)) {
                     i--;
                 }
+            }
+        }
+        /**
+         * Author: Onskreen
+         * Date: 27/01/2011
+         *
+         * Mirroing logic in cornerstone.
+         */
+        for (i=mCornerstoneStack.mHistory.size()-1; i>=0; i--) {
+            ActivityRecord r = (ActivityRecord)mCornerstoneStack.mHistory.get(i);
+            if (r.packageName.equals(name)) {
+                if (!doit) {
+                    return true;
+                }
+                didSomething = true;
+                Slog.i(TAG, "  Force finishing activity " + r);
+                if (r.app != null) {
+                    r.app.removed = true;
+                }
+                r.app = null;
+                r.stack.finishActivityLocked(r, i, Activity.RESULT_CANCELED, null, "uninstall");
             }
         }
 
