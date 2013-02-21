@@ -169,6 +169,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
+import java.util.ArrayList;
 
 /**
  * WindowManagerPolicy implementation for the Android phone UI.  This
@@ -3441,7 +3442,14 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 + " cf=" + cf.toShortString() + " vf=" + vf.toShortString());
 
         win.computeFrameLw(pf, df, cf, vf);
-
+        /**
+         * Author: Onskreen
+         * Date: 14/04/2011
+         *
+         * This logic ensures that the appropriate rects (mContent* and mCurr*)
+         * are modified accordingly when the input method window is visible. These
+         * rects are used when the Window has SOFT_INPUT_ADJUST_RESIZE set
+         */
         // Dock windows carve out the bottom of the screen, so normal windows
         // can't appear underneath them.
         if (attrs.type == TYPE_INPUT_METHOD && win.isVisibleOrBehindKeyguardLw()
