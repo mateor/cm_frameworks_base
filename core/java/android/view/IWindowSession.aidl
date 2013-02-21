@@ -178,6 +178,15 @@ interface IWindowSession {
     
     void wallpaperCommandComplete(IBinder window, in Bundle result);
 
+    /**
+     * Author: Onskreen
+     * Date: 17/02/2011
+     *
+     * Notifies the WindowManagerService to reshuffle its z-order to dispatch the user
+     * input event to the newly focused window.
+     */
+    void handleFocusChange(IBinder token);
+
     void setUniverseTransform(IBinder window, float alpha, float offx, float offy,
             float dsdx, float dtdx, float dsdy, float dtdy);
 
