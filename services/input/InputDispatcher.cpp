@@ -1240,6 +1240,9 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             }
 
             int32_t flags = windowInfo->layoutParamsFlags;
+		#if DEBUG_USER_INPUT
+			ALOGD("window is: %s", windowInfo->name.string());
+		#endif
             if (flags & InputWindowInfo::FLAG_SYSTEM_ERROR) {
                 if (topErrorWindowHandle == NULL) {
                     topErrorWindowHandle = windowHandle;
