@@ -1637,7 +1637,6 @@ public final class Settings {
          */
         @Deprecated
         public static final String WIFI_STATIC_DNS2 = "wifi_static_dns2";
-        
 
         /**
          * Allows automatic retrieval of mms contents
@@ -1825,6 +1824,17 @@ public final class Settings {
          * @hide
          */
         public static final String AUTO_BRIGHTNESS_BACKLIGHT = "auto_brightness_backlight";
+
+        /**
+         * Correction factor for auto-brightness adjustment light sensor
+         * debounce times.
+         * Smaller factors will make the adjustment more responsive, but might
+         * cause flicker and/or cause higher CPU usage.
+         * Valid range is 0.2 ... 3
+         *
+         * @hide
+         */
+        public static final String AUTO_BRIGHTNESS_RESPONSIVENESS = "auto_brightness_responsiveness";
 
          /**
           * Determines which streams are affected by mute. The
@@ -2193,6 +2203,13 @@ public final class Settings {
         public static final String TTY_MODE = "tty_mode";
 
         /**
+         * Whether noise suppression is enabled. The value is
+         * boolean (1 or 0).
+         * @hide
+         */
+        public static final String NOISE_SUPPRESSION = "noise_suppression";
+
+        /**
          * Whether the sounds effects (key clicks, lid open ...) are enabled. The value is
          * boolean (1 or 0).
          */
@@ -2278,6 +2295,11 @@ public final class Settings {
          * @hide
          */
         public static final String BATTERY_LIGHT_FULL_COLOR = "battery_light_full_color";
+
+        /** Sprint MWI Quirk: Show message wait indicator notifications
+         * @hide
+         */
+        public static final String ENABLE_MWI_NOTIFICATION = "enable_mwi_notification";
 
         /**
          * Show pointer location on screen?
@@ -2551,6 +2573,24 @@ public final class Settings {
         public static final String DISABLE_FULLSCREEN_KEYBOARD = "disable_fullscreen_keyboard";
 
         /**
+         * HALO, should default to 0 (no, do not show)
+         * @hide
+         */
+        public static final String HALO_ACTIVE = "halo_active";
+
+        /**
+         * HALO reversed?, should default to 1 (yes, reverse)
+         * @hide
+         */
+        public static final String HALO_REVERSED = "halo_reversed";
+
+        /**
+         * HALO hide?, should default to 0 (no, do not hide)
+         * @hide
+         */
+        public static final String HALO_HIDE = "halo_hide";
+
+        /**
          * Pie menu, should default to 1 (yes, show)
          * @hide
          */
@@ -2575,10 +2615,16 @@ public final class Settings {
         public static final String PIE_SEARCH = "pie_search";
 
         /**
-         * Pie gap angle, should default to 3
+         * Pie gap angle, should default to 2
          * @hide
          */
         public static final String PIE_GAP = "pie_gap";
+
+        /**
+         * Pie empty angle, should default to 12
+         * @hide
+         */
+        public static final String PIE_ANGLE = "pie_angle";
 
         /**
          * Pie trigger fraction, should default to 1
@@ -2607,7 +2653,7 @@ public final class Settings {
         public static final String PIE_MODE = "pie_mode";
 
         /**
-         * Pie size fraction
+         * Pie size fraction, default is 1.0f (normal)
          * @hide
          */
         public static final String PIE_SIZE = "pie_size";
@@ -2630,6 +2676,12 @@ public final class Settings {
          * @hide
          */
         public static final String LOCKSCREEN_ALLOW_ROTATION = "lockscreen_allow_rotation";
+
+        /**
+         * Allows quick unlock
+         * @hide
+         */
+        public static final String LOCKSCREEN_QUICK_UNLOCK = "lockscreen_quick_unlock";
 
         /**
          * Allows lockscreen to show homescreen widgets
