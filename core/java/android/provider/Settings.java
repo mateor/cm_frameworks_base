@@ -2319,6 +2319,14 @@ public final class Settings {
         public static final String POINTER_LOCATION = "pointer_location";
 
         /**
+         * Show icon when stylus is used?
+         * 0 = no
+         * 1 = yes
+         * @hide
+         */
+        public static final String STYLUS_ICON_ENABLED = "stylus_icon_enabled";
+
+        /**
          * Show touch positions on screen?
          * 0 = no
          * 1 = yes
@@ -2462,12 +2470,6 @@ public final class Settings {
         public static final String SIP_ASK_ME_EACH_TIME = "SIP_ASK_ME_EACH_TIME";
 
         /**
-         * Torch state (flashlight)
-         * @hide
-         */
-        public static final String TORCH_STATE = "torch_state";
-
-        /**
          * Pointer speed setting.
          * This is an integer value in a range between -7 and +7, so there are 15 possible values.
          *   -7 = slowest
@@ -2598,6 +2600,12 @@ public final class Settings {
          * @hide
          */
         public static final String HALO_HIDE = "halo_hide";
+
+        /**
+         * HALO size fraction, default is 1.0f (normal)
+         * @hide
+         */
+        public static final String HALO_SIZE = "halo_size";
 
         /**
          * HALO pause activities?, defaults to 0 (no, do not pause) on devices which isLargeRAM() == true
@@ -2817,7 +2825,7 @@ public final class Settings {
          */
         public static final String STATUS_BAR_AM_PM_STYLE = "status_bar_am_pm_style";
 
-        /**	
+        /** 
          * Circle battery, default = 0, standard android battery
          * @hide
          */
@@ -3085,14 +3093,14 @@ public final class Settings {
          */
         public static final String UI_FORCE_OVERFLOW_BUTTON = "ui_force_overflow_button";
 
-	/**
+    /**
          * Volume key controls ringtone or media sound stream
          *
          * @hide
          */
-	public static final String VOLUME_KEYS_CONTROL_RING_STREAM = "volume_keys_control_ring_stream";
+    public static final String VOLUME_KEYS_CONTROL_RING_STREAM = "volume_keys_control_ring_stream";
         
-	/**
+    /**
          * Settings to backup. This is here so that it's in the same place as the settings
          * keys and easy to update.
          *

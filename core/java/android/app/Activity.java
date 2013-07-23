@@ -1023,7 +1023,7 @@ public class Activity extends ContextThemeWrapper
     /**
      * Called after {@link #onCreate} &mdash; or after {@link #onRestart} when  
      * the activity had been stopped, but is now again being displayed to the 
-	 * user.  It will be followed by {@link #onResume}.
+     * user.  It will be followed by {@link #onResume}.
      *
      * <p><em>Derived classes must call through to the super class's
      * implementation of this method.  If they do not, an exception will be
@@ -4167,6 +4167,10 @@ public class Activity extends ContextThemeWrapper
         }
     }
 
+    public void finishFloating() {
+        mMainThread.performFinishFloating();
+    }
+
     /**
      * Finish this activity as well as all activities immediately below it
      * in the current task that have the same affinity.  This is typically
@@ -5377,6 +5381,14 @@ public class Activity extends ContextThemeWrapper
             mStopped = true;
         }
         mResumed = false;
+
+        // Floatingwindows activities should be kept volatile to prevent new activities taking
+        // up front in a minimized space. Every stop call, for instance when pressing home,
+        // will terminate the activity. If the activity is already finishing we might just
+        // as well let it go.
+        if (!mChangingConfigurations && mWindow != null && mWindow.mIsFloatingWindow && !isFinishing()) {
+            finish();
+        }
     }
 
     final void performDestroy() {
