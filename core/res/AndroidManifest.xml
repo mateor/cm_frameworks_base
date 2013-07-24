@@ -222,7 +222,7 @@
         android:permissionGroupFlags="personalInfo"
         android:priority="360"/>
 
-  <!-- Allows an application to send SMS messages. -->
+   <!-- Allows an application to send SMS messages. -->
     <permission android:name="android.permission.SEND_SMS"
         android:permissionGroup="android.permission-group.MESSAGES"
         android:protectionLevel="dangerous"
@@ -374,7 +374,7 @@
         android:label="@string/permlab_writeCallLog"
         android:description="@string/permdesc_writeCallLog" />
 
-  <!-- Allows an application to read from the user's social stream. -->
+    <!-- Allows an application to read from the user's social stream. -->
     <permission android:name="android.permission.READ_SOCIAL_STREAM"
         android:permissionGroup="android.permission-group.SOCIAL_INFO"
         android:protectionLevel="dangerous"
@@ -551,7 +551,7 @@
         android:permissionGroupFlags="personalInfo"
         android:priority="280" />
 
-   <!-- Allows an application to add voicemails into the system. -->
+    <!-- Allows an application to add voicemails into the system. -->
     <permission android:name="com.android.voicemail.permission.ADD_VOICEMAIL"
         android:permissionGroup="android.permission-group.VOICEMAIL"
         android:protectionLevel="dangerous"
@@ -788,6 +788,14 @@
         android:protectionLevel="dangerous"
         android:description="@string/permdesc_changeWifiMulticastState"
         android:label="@string/permlab_changeWifiMulticastState" />
+
+    <!-- Allows an application to override the power key action
+        @hide -->
+    <permission android:name="android.permission.PREVENT_POWER_KEY"
+        android:permissionGroup="android.permission-group.HARDWARE_CONTROLS"
+        android:protectionLevel="signatureOrSystem"
+        android:label="@string/permlab_preventpower"
+        android:description="@string/permdesc_preventpower" />
 
     <!-- Allows access to the vibrator -->
     <permission android:name="android.permission.VIBRATE"
@@ -1839,6 +1847,12 @@
         android:description="@string/permdesc_movePackage"
         android:protectionLevel="signature|system" />
 
+    <!-- @hide Allows an application to change privacy guard state -->
+    <permission android:name="android.permission.CHANGE_PRIVACY_GUARD_STATE"
+        android:label="@string/permlab_changePrivacyGuardState"
+        android:description="@string/permdesc_changePrivacyGuardState"
+        android:protectionLevel="signature" />
+
     <!-- Allows an application to change whether an application component (other than its own) is
          enabled or not. -->
     <permission android:name="android.permission.CHANGE_COMPONENT_ENABLED_STATE"
@@ -1917,6 +1931,22 @@
         android:permissionGroup="android.permission-group.SYSTEM_TOOLS"
         android:label="@string/permlab_broadcastPackageRemoved"
         android:description="@string/permdesc_broadcastPackageRemoved"
+        android:protectionLevel="signature" />
+
+    <!-- Allows an application to cancel notifications from other apps
+         @hide -->
+    <permission android:name="android.permission.CANCEL_NOTIFICATIONS"
+        android:permissionGroup="android.permission-group.SYSTEM_TOOLS"
+        android:protectionLevel="signature|system"
+        android:label="@string/permlab_cancelNotifications"
+        android:description="@string/permdesc_cancelNotifications" />
+
+    <!-- Allows an application to intercept and rewrite outgoing SMS
+         @hide -->
+    <permission android:name="android.permission.INTERCEPT_SMS"
+        android:permissionGroup="android.permission-group.MESSAGES"
+        android:label="@string/permlab_interceptSmsSent"
+        android:description="@string/permdesc_interceptSmsSent"
         android:protectionLevel="signature" />
 
     <!-- Allows an application to broadcast an SMS receipt notification -->
